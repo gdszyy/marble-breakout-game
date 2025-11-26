@@ -7,6 +7,7 @@ import { TrajectoryPredictor, TrajectorySegment } from '../game/TrajectoryPredic
 import { AssetLoader, GameAssets } from '../game/AssetLoader';
 import { Scene } from '../game/SceneManager';
 import { GameEventType } from '../types/game';
+import { ParticleManager, ParticleEffect } from '../game/ParticleManager';
 
 function lerpColor(color1: number, color2: number, t: number): number {
   const r1 = (color1 >> 16) & 0xff;
@@ -28,6 +29,8 @@ export default function Game() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<PIXI.Application | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
+  const particleManagerRef = useRef<ParticleManager | null>(null);
+  const bulletTrailsRef = useRef<Map<string, ParticleEffect>>(new Map());
   const [gameState, setGameState] = useState<any>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [aimPosition, setAimPosition] = useState<{ x: number; y: number } | null>(null);
@@ -64,6 +67,10 @@ export default function Game() {
 
       const gameContainer = new PIXI.Container();
       app.stage.addChild(gameContainer);
+      
+      // 初始化粒子管理器
+      const particleManager = new ParticleManager();
+      particleManagerRef.current = particleManager;
 
       let lastTime = Date.now();
       app.ticker.add(() => {
@@ -72,6 +79,11 @@ export default function Game() {
         lastTime = currentTime;
 
         engine.update(deltaTime);
+        
+        // 更新粒子系统
+        if (particleManager) {
+          particleManager.update(deltaTime);
+        }
         
         // 根据当前场景渲染不同内容
         const currentScene = engine.getSceneManager().getCurrentScene();
@@ -152,6 +164,9 @@ export default function Game() {
     });
 
     return () => {
+      if (particleManagerRef.current) {
+        particleManagerRef.current.cleanup();
+      }
       app.destroy(true, { children: true });
     };
   }, []);
@@ -242,9 +257,29 @@ export default function Game() {
     }
 
     // 渲染子弹
+    const particleManager = particleManagerRef.current;
+    const bulletTrails = bulletTrailsRef.current;
+    
     for (const bullet of state.bullets) {
       const bulletType = bullet.program?.modules?.find((m: any) => !m.isModifier)?.type || 'NORMAL';
       const bulletTexture = assets ? AssetLoader.getBulletTexture(bulletType) : null;
+      
+      // 为新子弹创建粒子效果
+      if (particleManager && !bulletTrails.has(bullet.id)) {
+        // 发射火花效果（只在子弹刚创建时显示）
+        particleManager.createLaunchSpark(container, bullet.position.x, bullet.position.y);
+        
+        // 创建飞行拖尾效果
+        const trailEffect = particleManager.createBulletTrail(container, bullet.position.x, bullet.position.y);
+        bulletTrails.set(bullet.id, trailEffect);
+      }
+      
+      // 更新拖尾位置
+      const trailEffect = bulletTrails.get(bullet.id);
+      if (particleManager && trailEffect) {
+        particleManager.updateParticlePosition(trailEffect, bullet.position.x, bullet.position.y);
+        particleManager.emitTrailParticle(trailEffect);
+      }
       
       if (bulletTexture) {
         const sprite = new PIXI.Sprite(bulletTexture);
@@ -258,6 +293,19 @@ export default function Game() {
         graphics.circle(bullet.position.x, bullet.position.y, bullet.radius);
         graphics.fill(COLORS.BULLET_NORMAL);
         container.addChild(graphics);
+      }
+    }
+    
+    // 清理已消失子弹的粒子效果
+    const currentBulletIds = new Set(state.bullets.map(b => b.id));
+    for (const [bulletId, trailEffect] of Array.from(bulletTrails.entries())) {
+      if (!currentBulletIds.has(bulletId)) {
+        if (particleManager) {
+          // 子弹消失时创建爆炸效果
+          particleManager.createExplosion(container, trailEffect.container.x, trailEffect.container.y);
+          particleManager.destroyEffect(trailEffect);
+        }
+        bulletTrails.delete(bulletId);
       }
     }
 
