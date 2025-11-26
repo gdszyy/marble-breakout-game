@@ -169,3 +169,8 @@
 - [x] 定位访问 slot.program的代码位置
 - [x] 添加slot存在性检查
 - [x] 测试修复后的功能
+
+## 修复slotId解析错误
+- [x] 检查BulletEditor传递的slotId格式
+- [x] 修复handleUpdateSlot中的slotId解析逻辑
+- [x] 测试子弹编程界面的模块添加功能

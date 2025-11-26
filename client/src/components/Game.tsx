@@ -494,7 +494,20 @@ export default function Game() {
   };
 
   const handleUpdateSlot = (slotId: string, modules: any[]) => {
-    const slotIndex = parseInt(slotId.replace('slot', ''));
+    // 支持 'slot-a', 'slot-b', 'slot-c' 格式
+    const slotMap: Record<string, number> = {
+      'slot-a': 0,
+      'slot-b': 1,
+      'slot-c': 2,
+    };
+    const slotIndex = slotMap[slotId] ?? parseInt(slotId.replace(/\D/g, ''));
+    
+    // 检查slotIndex是否有效
+    if (isNaN(slotIndex) || slotIndex < 0 || slotIndex >= 3) {
+      console.error('Invalid slotId:', slotId, 'parsed as:', slotIndex);
+      return;
+    }
+    
     if (engineRef.current) {
       const state = engineRef.current.getState();
       const slot = state.bulletSlots[slotIndex];
