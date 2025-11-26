@@ -32,43 +32,6 @@ export default function Game() {
   const [aimPosition, setAimPosition] = useState<{ x: number; y: number } | null>(null);
   const [trajectory, setTrajectory] = useState<TrajectorySegment[]>([]);
   const [assets, setAssets] = useState<GameAssets | null>(null);
-  const [canvasScale, setCanvasScale] = useState(1);
-
-  // 计算画布缩放比例
-  const calculateCanvasScale = () => {
-    const aspectRatio = GAME_CONFIG.CANVAS_WIDTH / GAME_CONFIG.CANVAS_HEIGHT;
-    const maxWidth = window.innerWidth * 0.9; // 留出10%边距
-    const maxHeight = window.innerHeight * 0.7; // 留出30%给按钮和信息面板
-    
-    let scale = 1;
-    
-    // 根据宽度计算缩放
-    if (GAME_CONFIG.CANVAS_WIDTH > maxWidth) {
-      scale = maxWidth / GAME_CONFIG.CANVAS_WIDTH;
-    }
-    
-    // 检查高度是否超出
-    if (GAME_CONFIG.CANVAS_HEIGHT * scale > maxHeight) {
-      scale = maxHeight / GAME_CONFIG.CANVAS_HEIGHT;
-    }
-    
-    return scale;
-  };
-
-  // 监听窗口大小变化
-  useEffect(() => {
-    const handleResize = () => {
-      const scale = calculateCanvasScale();
-      setCanvasScale(scale);
-    };
-    
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -571,13 +534,13 @@ export default function Game() {
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
 
       <div 
-        className="relative overflow-hidden rounded-lg"
+        className="relative rounded-lg border-4 border-blue-500 shadow-2xl"
         style={{
-          transform: `scale(${canvasScale})`,
-          transformOrigin: 'top center',
+          width: `${GAME_CONFIG.CANVAS_WIDTH}px`,
+          height: `${GAME_CONFIG.CANVAS_HEIGHT}px`,
         }}
       >
-        <div ref={canvasRef} className="border-4 border-blue-500 rounded-lg shadow-2xl"></div>
+        <div ref={canvasRef} className="w-full h-full"></div>
         
         {/* 阶段标题提示 */}
         {gameState && gameState.showPhaseTitle && engineRef.current && (

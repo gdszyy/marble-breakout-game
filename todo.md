@@ -174,3 +174,9 @@
 - [x] 检查BulletEditor传递的slotId格式
 - [x] 修复handleUpdateSlot中的slotId解析逻辑
 - [x] 测试子弹编程界面的模块添加功能
+
+## 修复自适应缩放问题
+- [x] 移除画布的transform缩放
+- [x] 使用CSS布局让画布和按钮自然适应容器
+- [x] 确保按钮位置和画布匹配
+- [x] 测试不同屏幕尺寸的显示效果
