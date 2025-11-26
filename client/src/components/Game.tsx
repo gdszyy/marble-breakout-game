@@ -60,7 +60,8 @@ export default function Game() {
 
         engine.update(deltaTime);
         renderGame(app, gameContainer, engine);
-        setGameState(engine.getState());
+        // 强制React重新渲染，确保阶段标题和场景切换及时更新
+        setGameState({...engine.getState()});
       });
 
       // 鼠标移动事件 - 显示轨迹预测
@@ -451,7 +452,7 @@ export default function Game() {
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
 
-      <div className="relative">
+      <div className="relative overflow-hidden rounded-lg">
         <div ref={canvasRef} className="border-4 border-blue-500 rounded-lg shadow-2xl"></div>
         
         {/* 阶段标题提示 */}
