@@ -7,14 +7,19 @@ import { generateId, circleRectCollision, normalize, distance, randomFloat } fro
 import { EventManager } from './EventManager';
 import { ModuleRegistry } from './ModuleRegistry';
 import { BulletProgramProcessor } from './BulletProgramProcessor';
+import { SceneManager, Scene } from './SceneManager';
 
 export class GameEngine {
   private state: GameState;
   private eventManager: EventManager;
+  private sceneManager: SceneManager;
+  private phaseTitleTimer: number = 0;
+  private showingPhaseTitle: boolean = false;
 
   constructor() {
     this.state = this.createInitialState();
     this.eventManager = new EventManager(this.state);
+    this.sceneManager = new SceneManager();
     this.setupEventHandlers();
   }
 
@@ -87,6 +92,8 @@ export class GameEngine {
       isGameOver: false,
       errorMessage: null,
       debugLog: [],
+      showPhaseTitle: false,
+      phaseTitleTimer: 0,
       aimingTrajectory: null,
       aimDirection: null,
       gridSize: GAME_CONFIG.GRID_SIZE,
@@ -126,7 +133,7 @@ export class GameEngine {
   private handleBrickSpawn() {
     console.log('[Phase] Brick Spawn');
     this.spawnBrickRow();
-    setTimeout(() => this.eventManager.nextPhase(), 500);
+    // 移除自动切换，改为手动控制
   }
 
   private handleBulletLoading() {
@@ -149,7 +156,7 @@ export class GameEngine {
     console.log('[Phase] Brick Action');
     this.moveBricksDown();
     this.checkBricksTouchBottom();
-    setTimeout(() => this.eventManager.nextPhase(), 500);
+    // 移除自动切换，改为手动控制
   }
 
   // ========== 游戏循环 ==========
@@ -158,8 +165,35 @@ export class GameEngine {
     return this.state;
   }
 
+  getSceneManager(): SceneManager {
+    return this.sceneManager;
+  }
+
+  isShowingPhaseTitle(): boolean {
+    return this.showingPhaseTitle;
+  }
+
   update(deltaTime: number): void {
     if (this.state.isGameOver) return;
+
+    // 更新阶段标题计时器
+    if (this.state.showPhaseTitle) {
+      this.state.phaseTitleTimer += deltaTime;
+      if (this.state.phaseTitleTimer >= 1000) {  // 1秒后隐藏
+        this.state.showPhaseTitle = false;
+        this.state.phaseTitleTimer = 0;
+      }
+    }
+
+    // 更新场景切换
+    this.sceneManager.updateTransition(deltaTime);
+
+    // 根据当前阶段判断是否需要切换场景
+    const targetScene = this.sceneManager.getSceneForEvent(this.state.currentEvent);
+    const currentScene = this.sceneManager.getCurrentScene();
+    if (targetScene !== currentScene && !this.sceneManager.isTransitioning()) {
+      this.sceneManager.startTransition(targetScene);
+    }
 
     this.updateBullets(deltaTime);
     this.updateMarbles(deltaTime);
@@ -167,7 +201,7 @@ export class GameEngine {
     this.updateBumperCooldowns(deltaTime);
     this.checkCollisions();
     this.cleanup();
-    this.eventManager.autoAdvance();
+    // 严格回合制：移除自动推进，改为手动控制
   }
 
   private updateBullets(deltaTime: number): void {

@@ -22,7 +22,7 @@ export class EventManager {
   /**
    * 切换到下一个阶段
    */
-  nextPhase() {
+  nextPhase(skipTitle: boolean = false) {
     const currentEvent = this.state.currentEvent;
 
     // 四阶段循环: BRICK_SPAWN → BULLET_LOADING → PLAYER_ACTION → BRICK_ACTION → BRICK_SPAWN
@@ -42,16 +42,18 @@ export class EventManager {
       this.state.round++;
     }
 
-    this.switchTo(nextEvent);
+    this.switchTo(nextEvent, skipTitle);
   }
 
   /**
    * 切换到指定阶段
    */
-  switchTo(event: GameEventType) {
+  switchTo(event: GameEventType, skipTitle: boolean = false) {
     console.log(`[EventManager] Switching from ${this.state.currentEvent} to ${event}`);
     
     this.state.currentEvent = event;
+    this.state.showPhaseTitle = !skipTitle;
+    this.state.phaseTitleTimer = 0;
 
     // 执行对应的事件处理器
     const handler = this.eventHandlers.get(event);
@@ -72,42 +74,19 @@ export class EventManager {
 
   /**
    * 检查是否可以进入下一阶段
+   * 严格回合制：所有阶段都需要手动点击“下一阶段”按钮
    */
   canAdvance(): boolean {
     const currentEvent = this.state.currentEvent;
 
     switch (currentEvent) {
-      case GameEventType.BRICK_SPAWN:
-        // 砖块生成完成即可进入下一阶段
-        return true;
-
-      case GameEventType.BULLET_LOADING:
-        // 所有弹珠都已落下或消失
-        return this.state.marbles.length === 0 && this.state.pendingMarbleCount === 0;
-
-      case GameEventType.PLAYER_ACTION:
-        // 玩家确认结束行动（手动触发）
-        return false; // 需要玩家点击"下一阶段"按钮
-
-      case GameEventType.BRICK_ACTION:
-        // 砖块行动完成即可进入下一阶段
-        return true;
-
       case GameEventType.GAME_OVER:
         // 游戏结束，不能进入下一阶段
         return false;
 
       default:
-        return false;
-    }
-  }
-
-  /**
-   * 自动推进阶段（如果可以）
-   */
-  autoAdvance() {
-    if (this.canAdvance()) {
-      this.nextPhase();
+        // 所有其他阶段都需要手动推进
+        return true;
     }
   }
 }

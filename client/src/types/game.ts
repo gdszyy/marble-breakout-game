@@ -208,6 +208,8 @@ export interface GameState {
   // UI提示
   errorMessage: string | null;  // 错误消息
   debugLog: string[];  // 调试日志
+  showPhaseTitle: boolean;  // 是否显示阶段标题
+  phaseTitleTimer: number;  // 阶段标题计时器
   
   // 瞄准系统
   aimingTrajectory: Vector2[] | null;  // 瞄准轨迹点列表

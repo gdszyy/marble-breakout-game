@@ -9,6 +9,7 @@ import { TrajectoryPredictor } from '../game/TrajectoryPredictor';
 import type { TrajectorySegment } from '../game/TrajectoryPredictor';
 import { AssetLoader } from '../game/AssetLoader';
 import type { GameAssets } from '../game/AssetLoader';
+import { Scene } from '../game/SceneManager';
 
 export default function Game() {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -408,10 +409,60 @@ export default function Game() {
     }
   };
 
+  // 计算石板抽屉动画的位置
+  const getDrawerTransform = (): number => {
+    if (!engineRef.current) return 100;
+    
+    const transition = engineRef.current.getSceneManager().getTransition();
+    if (!transition) return 100;
+    
+    // 如果是切换到装填场景，从下往上滑动（0% -> 100%）
+    // 如果是切换回战斗场景，从上往下滑动（100% -> 0%）
+    if (transition.to === Scene.LOADING) {
+      return 100 - (transition.progress * 100);
+    } else {
+      return transition.progress * 100;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
 
-      <div ref={canvasRef} className="border-4 border-blue-500 rounded-lg shadow-2xl mb-4" />
+      <div className="relative">
+        <div ref={canvasRef} className="border-4 border-blue-500 rounded-lg shadow-2xl"></div>
+        
+        {/* 阶段标题提示 */}
+        {gameState && gameState.showPhaseTitle && engineRef.current && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+            <div className="bg-black/80 backdrop-blur-md px-16 py-8 rounded-2xl border-4 border-yellow-400 shadow-2xl animate-in zoom-in-50 duration-300">
+              <h2 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 animate-pulse">
+                {engineRef.current.getSceneManager().getPhaseTitle(gameState.currentEvent)}
+              </h2>
+            </div>
+          </div>
+        )}
+        
+        {/* 石板抽屉动画（装填场景） */}
+        {engineRef.current && engineRef.current.getSceneManager().isTransitioning() && (
+          <div 
+            className="absolute inset-0 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 border-4 border-cyan-400 rounded-lg shadow-2xl transition-transform duration-800 ease-in-out"
+            style={{
+              transform: `translateY(${getDrawerTransform()}%)`,
+            }}
+          >
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="text-4xl font-bold text-cyan-400 mb-4">
+                  ⚙️ 子弹装填场景
+                </div>
+                <div className="text-gray-400">
+                  弹珠正在掉落...
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-wrap gap-3 justify-center">
         <button
