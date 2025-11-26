@@ -9,6 +9,7 @@ import { Scene } from '../game/SceneManager';
 import { GameEventType } from '../types/game';
 import { ParticleManager, ParticleEffect } from '../game/ParticleManager';
 import { AudioManager, SoundType } from '../game/AudioManager';
+import { UIManager } from '../game/UIManager';
 
 function lerpColor(color1: number, color2: number, t: number): number {
   const r1 = (color1 >> 16) & 0xff;
@@ -33,6 +34,7 @@ export default function Game() {
   const particleManagerRef = useRef<ParticleManager | null>(null);
   const bulletTrailsRef = useRef<Map<string, ParticleEffect>>(new Map());
   const audioManagerRef = useRef<AudioManager | null>(null);
+  const uiManagerRef = useRef<UIManager | null>(null);
   const [gameState, setGameState] = useState<any>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [aimPosition, setAimPosition] = useState<{ x: number; y: number } | null>(null);
@@ -81,6 +83,26 @@ export default function Game() {
       
       // 播放背景环境音
       audioManager.play(SoundType.AMBIENT_TEMPLE, { loop: true });
+      
+      // 初始化UI管理器
+      const uiManager = new UIManager(app, gameContainer);
+      uiManagerRef.current = uiManager;
+      
+      // 注册UI回调
+      uiManager.setCallbacks({
+        onPause: () => {
+          app.ticker.stop();
+        },
+        onResume: () => {
+          app.ticker.start();
+        },
+        onRestart: handleReset,
+        onOpenEditor: () => setIsEditorOpen(true),
+        onToggleAudio: () => {
+          const isEnabled = audioManager.isEnabled();
+          audioManager.setEnabled(!isEnabled);
+        },
+      });
 
       let lastTime = Date.now();
       app.ticker.add(() => {
@@ -90,9 +112,19 @@ export default function Game() {
 
         engine.update(deltaTime);
         
-        // 检测阶段切换并播放音效
-        const currentPhase = engine.getState().currentEvent;
+        // 更新UI状态
+        const state = engine.getState();
+        if (uiManager) {
+          uiManager.updateStatus(state);
+        }
+        
+        // 检测阶段切换并播放音效和显示标题
+        const currentPhase = state.currentEvent;
         if (previousPhaseRef.current !== currentPhase) {
+          // 显示阶段标题
+          if (uiManager && state.showPhaseTitle) {
+            uiManager.showPhaseTitle(currentPhase);
+          }
           const audioManager = audioManagerRef.current;
           if (audioManager) {
             // 根据不同阶段播放不同音效
@@ -194,6 +226,9 @@ export default function Game() {
       }
       if (audioManagerRef.current) {
         audioManagerRef.current.cleanup();
+      }
+      if (uiManagerRef.current) {
+        uiManagerRef.current.cleanup();
       }
       app.destroy(true, { children: true });
     };
@@ -729,16 +764,7 @@ export default function Game() {
       >
         <div ref={canvasRef} className="w-full h-full"></div>
         
-        {/* 阶段标题提示 */}
-        {gameState && gameState.showPhaseTitle && engineRef.current && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
-            <div className="bg-black/80 backdrop-blur-md px-16 py-8 rounded-2xl border-4 border-yellow-400 shadow-2xl animate-in zoom-in-50 duration-300">
-              <h2 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 animate-pulse">
-                {engineRef.current.getSceneManager().getPhaseTitle(gameState.currentEvent)}
-              </h2>
-            </div>
-          </div>
-        )}
+        {/* 阶段标题已移入Canvas内，由UIManager管理 */}
 
       </div>
 

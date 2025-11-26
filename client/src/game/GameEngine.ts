@@ -212,7 +212,33 @@ export class GameEngine {
     this.updateVisualEffects(deltaTime / 1000); // 更新视觉效果
     this.checkCollisions();
     this.cleanup();
-    // 严格回合制：移除自动推进，改为手动控制
+    
+    // 自动阶段切换：检查当前阶段是否完成
+    this.checkAutoPhaseTransition();
+  }
+  
+  /**
+   * 检查并执行自动阶段切换
+   */
+  private checkAutoPhaseTransition(): void {
+    // 如果正在显示阶段标题，不进行切换
+    if (this.state.showPhaseTitle) {
+      return;
+    }
+    
+    // 检查当前阶段是否完成
+    if (this.eventManager.isPhaseComplete()) {
+      // 特殊处理：砖块生成和砖块下沉阶段需要延迟一小段时间
+      const currentPhase = this.state.currentEvent;
+      if (currentPhase === GameEventType.BRICK_SPAWN || currentPhase === GameEventType.BRICK_ACTION) {
+        // 等待阶段标题显示完毕后再切换（约1秒）
+        // 这里简化处理，直接切换
+        this.eventManager.nextPhase();
+      } else {
+        // 其他阶段直接切换
+        this.eventManager.nextPhase();
+      }
+    }
   }
 
   private updateBullets(deltaTime: number): void {

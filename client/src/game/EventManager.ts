@@ -73,8 +73,41 @@ export class EventManager {
   }
 
   /**
+   * 检查当前阶段是否完成，应该自动切换到下一阶段
+   */
+  isPhaseComplete(): boolean {
+    const currentEvent = this.state.currentEvent;
+
+    switch (currentEvent) {
+      case GameEventType.BRICK_SPAWN:
+        // 砖块生成阶段：检查是否有新砖块生成（简化：直接返回true，由handler处理）
+        // 实际上砖块生成是瞬时的，所以可以立即切换
+        return true;
+
+      case GameEventType.BULLET_LOADING:
+        // 子弹装填阶段：检查所有弹珠是否都已装填完成
+        return this.state.marbles.length === 0;
+
+      case GameEventType.PLAYER_ACTION:
+        // 玩家行动阶段：检查所有子弹是否都已发射并消失
+        return this.state.bullets.length === 0;
+
+      case GameEventType.BRICK_ACTION:
+        // 砖块下沉阶段：砖块下沉是瞬时的，可以立即切换
+        return true;
+
+      case GameEventType.GAME_OVER:
+        // 游戏结束，不能切换
+        return false;
+
+      default:
+        return false;
+    }
+  }
+
+  /**
    * 检查是否可以进入下一阶段
-   * 严格回合制：所有阶段都需要手动点击“下一阶段”按钮
+   * 用于手动切换（开发测试）
    */
   canAdvance(): boolean {
     const currentEvent = this.state.currentEvent;
@@ -85,7 +118,7 @@ export class EventManager {
         return false;
 
       default:
-        // 所有其他阶段都需要手动推进
+        // 所有其他阶段都允许手动推进
         return true;
     }
   }
