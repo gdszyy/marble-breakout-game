@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>粒子系统测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #1a1a2e;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+    #info {
+      margin-bottom: 20px;
+    }
+    canvas {
+      border: 2px solid #00ffff;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h2>粒子系统测试</h2>
+    <p>点击画布测试粒子效果：</p>
+    <button onclick="testLaunchSpark()">测试发射火花</button>
+    <button onclick="testExplosion()">测试爆炸效果</button>
+    <button onclick="testTrail()">测试拖尾效果</button>
+    <button onclick="testAOE()">测试AOE圆环</button>
+  </div>
+  <div id="canvas-container"></div>
+
+  <script type="module">
+    import * as PIXI from 'https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.mjs';
+    
+    // 简化的ParticleManager（从项目中复制）
+    class ParticleManager {
+      constructor() {
+        this.particleEffects = [];
+        this.particleTexture = PIXI.Texture.WHITE;
+      }
+
+      createLaunchSpark(container, x, y) {
+        const effectContainer = new PIXI.Container();
+        effectContainer.position.set(x, y);
+        container.addChild(effectContainer);
+
+        const particles = [];
+        for (let i = 0; i < 20; i++) {
+          const angle = (Math.PI * 2 * i) / 20;
+          const speed = 100 + Math.random() * 100;
+          const particle = this.createParticle(
+            effectContainer, 0, 0,
+            Math.cos(angle) * speed,
+            Math.sin(angle) * speed,
+            0.2 + Math.random() * 0.2,
+            0.5, 0.1, 0xffff00
+          );
+          particles.push(particle);
+        }
+
+        const effect = {
+          container: effectContainer,
+          particles,
+          autoDestroy: true,
+          lifetime: 0.5,
+          createdAt: Date.now(),
+        };
+
+        this.particleEffects.push(effect);
+        return effect;
+      }
+
+      createExplosion(container, x, y) {
+        const effectContainer = new PIXI.Container();
+        effectContainer.position.set(x, y);
+        container.addChild(effectContainer);
+
+        const particles = [];
+        for (let i = 0; i < 30; i++) {
+          const angle = (Math.PI * 2 * i) / 30;
+          const speed = 150 + Math.random() * 150;
+          const particle = this.createParticle(
+            effectContainer, 0, 0,
+            Math.cos(angle) * speed,
+            Math.sin(angle) * speed,
+            0.3 + Math.random() * 0.3,
+            0.8, 0.2, 0xffaa00
+          );
+          particles.push(particle);
+        }
+
+        const effect = {
+          container: effectContainer,
+          particles,
+          autoDestroy: true,
+          lifetime: 0.7,
+          createdAt: Date.now(),
+        };
+
+        this.particleEffects.push(effect);
+        return effect;
+      }
+
+      createParticle(container, x, y, vx, vy, life, scaleStart, scaleEnd, tint) {
+        const sprite = new PIXI.Sprite(this.particleTexture);
+        sprite.anchor.set(0.5);
+        sprite.position.set(x, y);
+        sprite.scale.set(scaleStart);
+        sprite.tint = tint;
+        container.addChild(sprite);
+
+        return { sprite, vx, vy, life, maxLife: life, fadeOut: true, scaleStart, scaleEnd };
+      }
+
+      update(deltaTime) {
+        const now = Date.now();
+        const effectsToDestroy = [];
+        const dt = deltaTime * 0.001;
+
+        for (const effect of this.particleEffects) {
+          const particlesToRemove = [];
+
+          for (const particle of effect.particles) {
+            particle.sprite.x += particle.vx * dt;
+            particle.sprite.y += particle.vy * dt;
+
+            if (effect.autoDestroy) {
+              particle.vy += 200 * dt;
+            }
+
+            particle.life -= dt;
+
+            if (particle.life <= 0) {
+              particle.sprite.destroy();
+              particlesToRemove.push(particle);
+            } else {
+              const lifeRatio = particle.life / particle.maxLife;
+              if (particle.fadeOut) {
+                particle.sprite.alpha = lifeRatio;
+              }
+              const scale = particle.scaleStart + (particle.scaleEnd - particle.scaleStart) * (1 - lifeRatio);
+              particle.sprite.scale.set(scale);
+            }
+          }
+
+          for (const particle of particlesToRemove) {
+            const index = effect.particles.indexOf(particle);
+            if (index > -1) {
+              effect.particles.splice(index, 1);
+            }
+          }
+
+          if (effect.autoDestroy && effect.lifetime) {
+            const elapsed = (now - effect.createdAt) / 1000;
+            if (elapsed >= effect.lifetime && effect.particles.length === 0) {
+              effectsToDestroy.push(effect);
+            }
+          }
+        }
+
+        for (const effect of effectsToDestroy) {
+          this.destroyEffect(effect);
+        }
+      }
+
+      destroyEffect(effect) {
+        for (const particle of effect.particles) {
+          particle.sprite.destroy();
+        }
+        effect.container.parent?.removeChild(effect.container);
+        effect.container.destroy();
+
+        const index = this.particleEffects.indexOf(effect);
+        if (index > -1) {
+          this.particleEffects.splice(index, 1);
+        }
+      }
+    }
+
+    // 初始化PixiJS应用
+    const app = new PIXI.Application();
+    await app.init({
+      width: 800,
+      height: 600,
+      backgroundColor: 0x1a1a2e,
+    });
+
+    document.getElementById('canvas-container').appendChild(app.canvas);
+
+    const particleManager = new ParticleManager();
+    const container = new PIXI.Container();
+    app.stage.addChild(container);
+
+    // 更新循环
+    let lastTime = Date.now();
+    app.ticker.add(() => {
+      const currentTime = Date.now();
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
+
+      particleManager.update(deltaTime);
+    });
+
+    // 测试函数
+    window.testLaunchSpark = () => {
+      particleManager.createLaunchSpark(container, 400, 300);
+      console.log('发射火花效果已触发');
+    };
+
+    window.testExplosion = () => {
+      particleManager.createExplosion(container, 400, 300);
+      console.log('爆炸效果已触发');
+    };
+
+    window.testTrail = () => {
+      console.log('拖尾效果需要持续移动的对象');
+    };
+
+    window.testAOE = () => {
+      console.log('AOE效果需要特殊实现');
+    };
+
+    // 点击画布创建效果
+    app.canvas.addEventListener('click', (e) => {
+      const rect = app.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      if (Math.random() > 0.5) {
+        particleManager.createLaunchSpark(container, x, y);
+      } else {
+        particleManager.createExplosion(container, x, y);
+      }
+    });
+
+    console.log('粒子系统测试页面已加载');
+  </script>
+</body>
+</html>

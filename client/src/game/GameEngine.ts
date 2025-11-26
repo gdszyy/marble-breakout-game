@@ -8,11 +8,14 @@ import { EventManager } from './EventManager';
 import { ModuleRegistry } from './ModuleRegistry';
 import { BulletProgramProcessor } from './BulletProgramProcessor';
 import { SceneManager, Scene } from './SceneManager';
+import { ParticleManager, ParticleEffect } from './ParticleManager';
 
 export class GameEngine {
   private state: GameState;
   private eventManager: EventManager;
   private sceneManager: SceneManager;
+  private particleManager: ParticleManager;
+  private bulletTrailEffects: Map<string, ParticleEffect> = new Map();
   private phaseTitleTimer: number = 0;
   private showingPhaseTitle: boolean = false;
 
@@ -20,6 +23,7 @@ export class GameEngine {
     this.state = this.createInitialState();
     this.eventManager = new EventManager(this.state);
     this.sceneManager = new SceneManager();
+    this.particleManager = new ParticleManager();
     this.setupEventHandlers();
   }
 
