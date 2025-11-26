@@ -6,6 +6,7 @@ import { BulletEditor } from './BulletEditor';
 import { TrajectoryPredictor, TrajectorySegment } from '../game/TrajectoryPredictor';
 import { AssetLoader, GameAssets } from '../game/AssetLoader';
 import { Scene } from '../game/SceneManager';
+import { GameEventType } from '../types/game';
 
 function lerpColor(color1: number, color2: number, t: number): number {
   const r1 = (color1 >> 16) & 0xff;
@@ -259,29 +260,40 @@ export default function Game() {
     uiText.y = 10;
     container.addChild(uiText);
 
-    // 渲染轨迹预测
-    if (trajectory.length > 0) {
-      for (const segment of trajectory) {
-        const graphics = new PIXI.Graphics();
-        
-        if (segment.points.length > 1) {
-          graphics.moveTo(segment.points[0].x, segment.points[0].y);
-          
-          for (let i = 1; i < segment.points.length; i++) {
-            graphics.lineTo(segment.points[i].x, segment.points[i].y);
-          }
-          
-          graphics.stroke({ width: 2, color: 0xffff00, alpha: 0.5 });
-        }
-        
-        container.addChild(graphics);
-      }
-      
+    // 渲染瞄准线和轨迹预测（仅在玩家阶段显示）
+    if (state.currentEvent === GameEventType.PLAYER_ACTION) {
+      // 显示瞄准线（从玩家到鼠标位置）
       if (aimPosition) {
+        const aimLine = new PIXI.Graphics();
+        aimLine.moveTo(state.player.position.x, state.player.position.y);
+        aimLine.lineTo(aimPosition.x, aimPosition.y);
+        aimLine.stroke({ width: 2, color: 0x00ff00, alpha: 0.6 });
+        container.addChild(aimLine);
+        
+        // 显示瞄准点
         const aimGraphics = new PIXI.Graphics();
         aimGraphics.circle(aimPosition.x, aimPosition.y, 5);
-        aimGraphics.fill({ color: 0xffff00, alpha: 0.7 });
+        aimGraphics.fill({ color: 0x00ff00, alpha: 0.8 });
         container.addChild(aimGraphics);
+      }
+      
+      // 显示轨迹预测
+      if (trajectory.length > 0) {
+        for (const segment of trajectory) {
+          const graphics = new PIXI.Graphics();
+          
+          if (segment.points.length > 1) {
+            graphics.moveTo(segment.points[0].x, segment.points[0].y);
+            
+            for (let i = 1; i < segment.points.length; i++) {
+              graphics.lineTo(segment.points[i].x, segment.points[i].y);
+            }
+            
+            graphics.stroke({ width: 2, color: 0xffff00, alpha: 0.5 });
+          }
+          
+          container.addChild(graphics);
+        }
       }
     }
 
