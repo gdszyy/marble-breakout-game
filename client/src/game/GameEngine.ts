@@ -24,6 +24,7 @@ export class GameEngine {
   }
 
   private createInitialState(): GameState {
+    // 玩家固定在底部中央，不能移动
     const player: Player = {
       position: { x: GAME_CONFIG.CANVAS_WIDTH / 2, y: GAME_CONFIG.CANVAS_HEIGHT - 50 },
       health: GAME_CONFIG.PLAYER_INITIAL_HEALTH,
