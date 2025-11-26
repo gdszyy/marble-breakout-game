@@ -164,6 +164,7 @@ export default function Game() {
     // 渲染砖块
     for (const brick of state.bricks) {
       const healthPercent = brick.health / brick.maxHealth;
+      const isFlashing = state.brickFlashTimers.has(brick.id);
       
       const brickTexture = assets ? AssetLoader.getBrickTexture(healthPercent) : null;
       
@@ -173,16 +174,29 @@ export default function Game() {
         sprite.y = brick.position.y;
         sprite.width = brick.size.width;
         sprite.height = brick.size.height;
+        
+        // 闪烁效果：调整色调
+        if (isFlashing) {
+          sprite.tint = 0xff6666; // 红色色调
+        }
+        
         container.addChild(sprite);
       } else {
         const graphics = new PIXI.Graphics();
-        const color = lerpColor(COLORS.BRICK_LOW_HEALTH, COLORS.BRICK_HIGH_HEALTH, 1 - healthPercent);
+        let color = lerpColor(COLORS.BRICK_LOW_HEALTH, COLORS.BRICK_HIGH_HEALTH, 1 - healthPercent);
+        
+        // 闪烁效果：使用红色
+        if (isFlashing) {
+          color = 0xff3333;
+        }
+        
         graphics.rect(brick.position.x, brick.position.y, brick.size.width, brick.size.height);
         graphics.fill(color);
         graphics.stroke({ width: 2, color: 0xffffff });
         container.addChild(graphics);
       }
       
+      // 血量数字（添加抖动效果）
       const text = new PIXI.Text({
         text: brick.health.toString(),
         style: {
@@ -192,8 +206,38 @@ export default function Game() {
           stroke: { color: 0x000000, width: 3 },
         },
       });
-      text.x = brick.position.x + brick.size.width / 2 - text.width / 2;
-      text.y = brick.position.y + brick.size.height / 2 - text.height / 2;
+      
+      let offsetX = 0;
+      let offsetY = 0;
+      if (isFlashing) {
+        // 抖动效果
+        offsetX = (Math.random() - 0.5) * 4;
+        offsetY = (Math.random() - 0.5) * 4;
+      }
+      
+      text.x = brick.position.x + brick.size.width / 2 - text.width / 2 + offsetX;
+      text.y = brick.position.y + brick.size.height / 2 - text.height / 2 + offsetY;
+      container.addChild(text);
+    }
+    
+    // 渲染伤害数字
+    for (const damageNumber of state.damageNumbers) {
+      const alpha = damageNumber.lifetime; // 根据剩余生命时间设置透明度
+      const scale = 1 + (1 - damageNumber.lifetime) * 0.5; // 缩放效果
+      
+      const text = new PIXI.Text({
+        text: `-${damageNumber.damage}`,
+        style: {
+          fontSize: 18 * scale,
+          fill: 0xff4444,
+          align: 'center',
+          stroke: { color: 0x000000, width: 4 },
+          fontWeight: 'bold',
+        },
+      });
+      text.x = damageNumber.position.x - text.width / 2;
+      text.y = damageNumber.position.y - text.height / 2;
+      text.alpha = alpha;
       container.addChild(text);
     }
 

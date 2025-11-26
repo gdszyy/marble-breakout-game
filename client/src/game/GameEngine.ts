@@ -1,7 +1,7 @@
 // 游戏引擎 - 完整实现四阶段循环系统
 
 import { GameEventType, BulletModuleType, MarbleState, ModuleRarity } from '../types/game';
-import type { GameState, Brick, Bullet, Player, Marble, Bumper, BulletSlot, BulletModule, BulletProgram } from '../types/game';
+import type { GameState, Brick, Bullet, Player, Marble, Bumper, BulletSlot, BulletModule, BulletProgram, DamageNumber } from '../types/game';
 import { GAME_CONFIG } from './config';
 import { generateId, circleRectCollision, normalize, distance, randomFloat } from './utils';
 import { EventManager } from './EventManager';
@@ -69,6 +69,8 @@ export class GameEngine {
       bricks: [],
       bullets: [],
       aoeRings: [],
+      damageNumbers: [],
+      brickFlashTimers: new Map(),
       bumperArray: [],
       rewardBumpers: [],
       bulletSlots,
@@ -208,6 +210,7 @@ export class GameEngine {
     this.updateMarbles(deltaTime);
     this.updateAOERings(deltaTime);
     this.updateBumperCooldowns(deltaTime);
+    this.updateVisualEffects(deltaTime / 1000); // 更新视觉效果
     this.checkCollisions();
     this.cleanup();
     // 严格回合制：移除自动推进，改为手动控制
@@ -347,6 +350,15 @@ export class GameEngine {
           )
         ) {
           brick.health -= bullet.damage;
+          
+          // 创建伤害数字效果
+          this.createDamageNumber(bullet.damage, {
+            x: brick.position.x + brick.size.width / 2,
+            y: brick.position.y + brick.size.height / 2,
+          });
+          
+          // 设置砖块闪烁效果
+          this.state.brickFlashTimers.set(brick.id, 0.15); // 0.15秒闪烁
 
           if (brick.health <= 0) {
             bricksToRemove.push(brick.id);
@@ -444,6 +456,41 @@ export class GameEngine {
 
     slot.energy -= slot.energyCost;
     this.state.errorMessage = null;
+  }
+
+  // 创建伤害数字效果
+  private createDamageNumber(damage: number, position: { x: number; y: number }): void {
+    const damageNumber: DamageNumber = {
+      id: generateId(),
+      position: { ...position },
+      damage,
+      lifetime: 1.0, // 1秒生命时间
+      velocity: { x: 0, y: -50 }, // 向上移动
+    };
+    this.state.damageNumbers.push(damageNumber);
+  }
+  
+  // 更新视觉效果
+  private updateVisualEffects(deltaTime: number): void {
+    // 更新伤害数字
+    this.state.damageNumbers = this.state.damageNumbers.filter((dn) => {
+      dn.position.x += dn.velocity.x * deltaTime;
+      dn.position.y += dn.velocity.y * deltaTime;
+      dn.lifetime -= deltaTime;
+      return dn.lifetime > 0;
+    });
+    
+    // 更新砖块闪烁计时器
+    const brickIdsToRemove: string[] = [];
+    this.state.brickFlashTimers.forEach((timer, brickId) => {
+      const newTimer = timer - deltaTime;
+      if (newTimer <= 0) {
+        brickIdsToRemove.push(brickId);
+      } else {
+        this.state.brickFlashTimers.set(brickId, newTimer);
+      }
+    });
+    brickIdsToRemove.forEach(id => this.state.brickFlashTimers.delete(id));
   }
 
   // 创建碰撞触发的子弹

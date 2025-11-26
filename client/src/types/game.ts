@@ -179,6 +179,14 @@ export interface AOERing {
   damagedBricks: Set<string>; // 已受伤砖块ID集合
 }
 
+export interface DamageNumber {
+  id: string;
+  position: Vector2;          // 当前位置
+  damage: number;             // 伤害数值
+  lifetime: number;           // 剩余生命时间(秒)
+  velocity: Vector2;          // 移动速度
+}
+
 // ============ 游戏状态 ============
 export interface GameState {
   // 事件系统
@@ -189,6 +197,8 @@ export interface GameState {
   bricks: Brick[];
   bullets: Bullet[];
   aoeRings: AOERing[];        // AOE圆环效果
+  damageNumbers: DamageNumber[];  // 伤害数字效果
+  brickFlashTimers: Map<string, number>;  // 砖块闪烁计时器
   
   // 子弹装填系统
   bumperArray: Bumper[];
