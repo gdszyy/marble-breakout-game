@@ -99,3 +99,7 @@
 - [x] 修复清空按钮功能（返还模块到库存）
 - [x] 实现模块拖拽排序功能
 - [x] 测试清空和拖拽流程
+
+## Dialog组件修复
+- [x] 修复DialogOverlay的forwardRef警告
+- [x] 测试Dialog组件正常工作
