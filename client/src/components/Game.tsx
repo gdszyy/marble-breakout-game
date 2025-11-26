@@ -8,6 +8,7 @@ import { AssetLoader, GameAssets } from '../game/AssetLoader';
 import { Scene } from '../game/SceneManager';
 import { GameEventType } from '../types/game';
 import { ParticleManager, ParticleEffect } from '../game/ParticleManager';
+import { AudioManager, SoundType } from '../game/AudioManager';
 
 function lerpColor(color1: number, color2: number, t: number): number {
   const r1 = (color1 >> 16) & 0xff;
@@ -31,10 +32,12 @@ export default function Game() {
   const engineRef = useRef<GameEngine | null>(null);
   const particleManagerRef = useRef<ParticleManager | null>(null);
   const bulletTrailsRef = useRef<Map<string, ParticleEffect>>(new Map());
+  const audioManagerRef = useRef<AudioManager | null>(null);
   const [gameState, setGameState] = useState<any>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [aimPosition, setAimPosition] = useState<{ x: number; y: number } | null>(null);
   const [trajectory, setTrajectory] = useState<TrajectorySegment[]>([]);
+  const previousPhaseRef = useRef<GameEventType | null>(null);
   const [assets, setAssets] = useState<GameAssets | null>(null);
 
   useEffect(() => {
@@ -71,6 +74,13 @@ export default function Game() {
       // 初始化粒子管理器
       const particleManager = new ParticleManager(app.renderer);
       particleManagerRef.current = particleManager;
+      
+      // 初始化音效管理器
+      const audioManager = new AudioManager();
+      audioManagerRef.current = audioManager;
+      
+      // 播放背景环境音
+      audioManager.play(SoundType.AMBIENT_TEMPLE, { loop: true });
 
       let lastTime = Date.now();
       app.ticker.add(() => {
@@ -79,6 +89,21 @@ export default function Game() {
         lastTime = currentTime;
 
         engine.update(deltaTime);
+        
+        // 检测阶段切换并播放音效
+        const currentPhase = engine.getState().currentEvent;
+        if (previousPhaseRef.current !== currentPhase) {
+          const audioManager = audioManagerRef.current;
+          if (audioManager) {
+            // 根据不同阶段播放不同音效
+            if (currentPhase === GameEventType.BULLET_LOADING) {
+              audioManager.play(SoundType.ENERGY_CHARGING, { volume: 0.5 });
+            } else if (currentPhase === GameEventType.BRICK_ACTION) {
+              audioManager.play(SoundType.GOLEM_DESCENDING, { volume: 0.6 });
+            }
+          }
+          previousPhaseRef.current = currentPhase;
+        }
         
         // 更新粒子系统
         if (particleManager) {
@@ -166,6 +191,9 @@ export default function Game() {
     return () => {
       if (particleManagerRef.current) {
         particleManagerRef.current.cleanup();
+      }
+      if (audioManagerRef.current) {
+        audioManagerRef.current.cleanup();
       }
       app.destroy(true, { children: true });
     };
@@ -269,6 +297,12 @@ export default function Game() {
         // 发射火花效果（只在子弹刚创建时显示）
         particleManager.createLaunchSpark(container, bullet.position.x, bullet.position.y);
         
+        // 播放发射音效
+        const audioManager = audioManagerRef.current;
+        if (audioManager) {
+          audioManager.play(SoundType.RUNE_LAUNCH, { volume: 0.6 });
+        }
+        
         // 创建飞行拖尾效果
         const trailEffect = particleManager.createBulletTrail(container, bullet.position.x, bullet.position.y);
         bulletTrails.set(bullet.id, trailEffect);
@@ -304,6 +338,12 @@ export default function Game() {
           // 子弹消失时创建爆炸效果
           particleManager.createExplosion(container, trailEffect.container.x, trailEffect.container.y);
           particleManager.destroyEffect(trailEffect);
+          
+          // 播放爆炸音效
+          const audioManager = audioManagerRef.current;
+          if (audioManager) {
+            audioManager.play(SoundType.GOLEM_SHATTER, { volume: 0.7 });
+          }
         }
         bulletTrails.delete(bulletId);
       }
