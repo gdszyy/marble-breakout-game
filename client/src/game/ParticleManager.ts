@@ -41,9 +41,11 @@ export class ParticleManager {
    * 创建子弹发射火花效果
    */
   createLaunchSpark(container: Container, x: number, y: number): ParticleEffect {
+    console.log('[ParticleManager] Creating launch spark at', x, y);
     const effectContainer = new Container();
     effectContainer.position.set(x, y);
     container.addChild(effectContainer);
+    console.log('[ParticleManager] Effect container added to parent:', container);
 
     const particles: SimpleParticle[] = [];
 
@@ -58,8 +60,8 @@ export class ParticleManager {
         Math.cos(angle) * speed,
         Math.sin(angle) * speed,
         0.2 + Math.random() * 0.2,
-        0.5,
-        0.1,
+        2.0, // 增大初始尺寸
+        0.5, // 增大结束尺寸
         0xffff00, // 黄色
         ParticleTextureType.SPARK
       );
@@ -75,6 +77,8 @@ export class ParticleManager {
     };
 
     this.particleEffects.push(effect);
+    console.log('[ParticleManager] Launch spark created with', particles.length, 'particles');
+    console.log('[ParticleManager] Total effects:', this.particleEffects.length);
     return effect;
   }
 
@@ -112,18 +116,18 @@ export class ParticleManager {
 
     effect.lastEmit = now;
 
-    const particle = this.createParticle(
-      effect.container,
-      0,
-      0,
-      0,
-      0,
-      0.3 + Math.random() * 0.2,
-      0.3,
-      0.1,
-      0x00aaff, // 蓝色
-      ParticleTextureType.SMOKE
-    );
+      const particle = this.createParticle(
+        effect.container,
+        0,
+        0,
+        (Math.random() - 0.5) * 20,
+        (Math.random() - 0.5) * 20,
+        0.3 + Math.random() * 0.2,
+        1.5, // 增大初始尺寸
+        0.5, // 增大结束尺寸
+        0x00aaff, // 蓝色
+        ParticleTextureType.SMOKE
+      );
     effect.particles.push(particle);
   }
 
@@ -148,9 +152,9 @@ export class ParticleManager {
         Math.cos(angle) * speed,
         Math.sin(angle) * speed,
         0.3 + Math.random() * 0.3,
-        0.8,
-        0.2,
-        0xffaa00, // 橙色
+        2.5, // 增大初始尺寸
+        1.0, // 增大结束尺寸
+        0xff8800, // 橙色
         ParticleTextureType.STAR
       );
       particles.push(particle);

@@ -71,11 +71,16 @@ export default function Game() {
       appRef.current = app;
 
       const gameContainer = new PIXI.Container();
+      const particleLayer = new PIXI.Container(); // 独立的粒子层
       app.stage.addChild(gameContainer);
+      app.stage.addChild(particleLayer); // 粒子层在游戏层之上
       
-      // 初始化粒子管理器
+      // 初始化粒子管理器（使用独立的粒子层）
       const particleManager = new ParticleManager(app.renderer);
       particleManagerRef.current = particleManager;
+      
+      // 将粒子层保存到ref以便后续使用
+      const particleLayerRef = { current: particleLayer };
       
       // 初始化音效管理器
       const audioManager = new AudioManager();
@@ -121,11 +126,17 @@ export default function Game() {
         // 检测阶段切换并播放音效和显示标题
         const currentPhase = state.currentEvent;
         if (previousPhaseRef.current !== currentPhase) {
+          const audioManager = audioManagerRef.current;
+          
+          // 检测游戏结束
+          if (currentPhase === GameEventType.GAME_OVER && audioManager) {
+            audioManager.play(SoundType.AMBIENT_TEMPLE, { loop: false, volume: 0.3 }); // 使用环境音作为游戏结束音效
+          }
+          
           // 显示阶段标题
           if (uiManager && state.showPhaseTitle) {
             uiManager.showPhaseTitle(currentPhase);
           }
-          const audioManager = audioManagerRef.current;
           if (audioManager) {
             // 根据不同阶段播放不同音效
             if (currentPhase === GameEventType.BULLET_LOADING) {
@@ -145,9 +156,9 @@ export default function Game() {
         // 根据当前场景渲染不同内容
         const currentScene = engine.getSceneManager().getCurrentScene();
         if (currentScene === Scene.BATTLE) {
-          renderBattleScene(app, gameContainer, engine);
-        } else {
-          renderLoadingScene(app, gameContainer, engine);
+          renderBattleScene(app, gameContainer, particleLayer, engine);
+        } else if (currentScene === Scene.LOADING) {
+          renderLoadingScene(app, gameContainer, particleLayer, engine);
         }
         
         // 强制React重新渲染，确保阶段标题和场景切换及时更新
@@ -235,8 +246,9 @@ export default function Game() {
   }, []);
 
   // 渲染战斗场景（砖块、子弹、玩家）
-  function renderBattleScene(app: PIXI.Application, container: PIXI.Container, engine: GameEngine) {
+  function renderBattleScene(app: PIXI.Application, container: PIXI.Container, particleLayer: PIXI.Container, engine: GameEngine) {
     container.removeChildren();
+    // 注意：不清空 particleLayer，由 ParticleManager 管理
     const state = engine.getState();
 
     // 渲染砖块
@@ -330,7 +342,7 @@ export default function Game() {
       // 为新子弹创建粒子效果
       if (particleManager && !bulletTrails.has(bullet.id)) {
         // 发射火花效果（只在子弹刚创建时显示）
-        particleManager.createLaunchSpark(container, bullet.position.x, bullet.position.y);
+        particleManager.createLaunchSpark(particleLayer, bullet.position.x, bullet.position.y);
         
         // 播放发射音效
         const audioManager = audioManagerRef.current;
@@ -339,7 +351,7 @@ export default function Game() {
         }
         
         // 创建飞行拖尾效果
-        const trailEffect = particleManager.createBulletTrail(container, bullet.position.x, bullet.position.y);
+        const trailEffect = particleManager.createBulletTrail(particleLayer, bullet.position.x, bullet.position.y);
         bulletTrails.set(bullet.id, trailEffect);
       }
       
@@ -371,7 +383,7 @@ export default function Game() {
       if (!currentBulletIds.has(bulletId)) {
         if (particleManager) {
           // 子弹消失时创建爆炸效果
-          particleManager.createExplosion(container, trailEffect.container.x, trailEffect.container.y);
+          particleManager.createExplosion(particleLayer, trailEffect.container.x, trailEffect.container.y);
           particleManager.destroyEffect(trailEffect);
           
           // 播放爆炸音效
@@ -396,7 +408,7 @@ export default function Game() {
       // 为AOE圆环创建粒子效果
       if (particleManager && !aoeRingParticles.has(`aoe-${ring.id}`)) {
         const particleEffect = particleManager.createAOERing(
-          container,
+          particleLayer,
           ring.position.x,
           ring.position.y,
           ring.currentRadius
@@ -502,30 +514,81 @@ export default function Game() {
       }
     }
 
-    // 游戏结束提示
+    // 游戏结束界面
     if (state.isGameOver) {
       const gameOverBg = new PIXI.Graphics();
       gameOverBg.rect(0, 0, GAME_CONFIG.CANVAS_WIDTH, GAME_CONFIG.CANVAS_HEIGHT);
-      gameOverBg.fill({ color: 0x000000, alpha: 0.7 });
+      gameOverBg.fill({ color: 0x000000, alpha: 0.8 });
       container.addChild(gameOverBg);
 
-      const gameOverText = new PIXI.Text({
-        text: '游戏结束\n点击重新开始',
+      // 游戏结束标题
+      const gameOverTitle = new PIXI.Text({
+        text: '💀 游戏结束',
         style: {
-          fontSize: 32,
+          fontSize: 48,
+          fill: 0xff4444,
+          align: 'center',
+          fontWeight: 'bold',
+          stroke: { color: 0x000000, width: 4 },
+        },
+      });
+      gameOverTitle.anchor.set(0.5);
+      gameOverTitle.x = GAME_CONFIG.CANVAS_WIDTH / 2;
+      gameOverTitle.y = GAME_CONFIG.CANVAS_HEIGHT / 2 - 100;
+      container.addChild(gameOverTitle);
+
+      // 分数显示
+      const scoreText = new PIXI.Text({
+        text: `最终分数: ${state.score}\n存活回合: ${state.round}`,
+        style: {
+          fontSize: 24,
           fill: 0xffffff,
           align: 'center',
         },
       });
-      gameOverText.x = GAME_CONFIG.CANVAS_WIDTH / 2 - gameOverText.width / 2;
-      gameOverText.y = GAME_CONFIG.CANVAS_HEIGHT / 2 - gameOverText.height / 2;
-      container.addChild(gameOverText);
+      scoreText.anchor.set(0.5);
+      scoreText.x = GAME_CONFIG.CANVAS_WIDTH / 2;
+      scoreText.y = GAME_CONFIG.CANVAS_HEIGHT / 2 - 20;
+      container.addChild(scoreText);
+
+      // 重新开始按钮
+      const restartButton = new PIXI.Graphics();
+      const buttonWidth = 200;
+      const buttonHeight = 60;
+      const buttonX = GAME_CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
+      const buttonY = GAME_CONFIG.CANVAS_HEIGHT / 2 + 50;
+      
+      restartButton.roundRect(buttonX, buttonY, buttonWidth, buttonHeight, 10);
+      restartButton.fill({ color: 0x00ff00 });
+      restartButton.stroke({ width: 3, color: 0xffffff });
+      
+      const restartText = new PIXI.Text({
+        text: '🔄 重新开始',
+        style: {
+          fontSize: 24,
+          fill: 0xffffff,
+          fontWeight: 'bold',
+        },
+      });
+      restartText.anchor.set(0.5);
+      restartText.x = GAME_CONFIG.CANVAS_WIDTH / 2;
+      restartText.y = buttonY + buttonHeight / 2;
+      
+      restartButton.eventMode = 'static';
+      restartButton.cursor = 'pointer';
+      restartButton.on('pointerdown', () => {
+        handleReset();
+      });
+      
+      container.addChild(restartButton);
+      container.addChild(restartText);
     }
   }
 
   // 渲染装填场景（缓冲器阵列、弹珠）
-  function renderLoadingScene(app: PIXI.Application, container: PIXI.Container, engine: GameEngine) {
+  function renderLoadingScene(app: PIXI.Application, container: PIXI.Container, particleLayer: PIXI.Container, engine: GameEngine) {
     container.removeChildren();
+    // 注意：不清空 particleLayer，由 ParticleManager 管理
     const state = engine.getState();
 
     // 背景色

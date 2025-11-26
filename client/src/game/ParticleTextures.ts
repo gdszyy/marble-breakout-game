@@ -45,7 +45,7 @@ export class ParticleTextureGenerator {
    */
   private createSparkTexture(): RenderTexture {
     const graphics = new Graphics();
-    const size = 16;
+    const size = 32; // 增大纹理尺寸
     
     // 绘制菱形
     graphics.moveTo(size / 2, 0);
@@ -71,7 +71,7 @@ export class ParticleTextureGenerator {
    */
   private createCircleTexture(): RenderTexture {
     const graphics = new Graphics();
-    const size = 16;
+    const size = 32; // 增大纹理尺寸
     const radius = size / 2;
     
     // 绘制渐变圆形（从中心到边缘渐变）
@@ -94,7 +94,7 @@ export class ParticleTextureGenerator {
    */
   private createStarTexture(): RenderTexture {
     const graphics = new Graphics();
-    const size = 20;
+    const size = 32; // 增大纹理尺寸
     const centerX = size / 2;
     const centerY = size / 2;
     const outerRadius = size / 2;
@@ -133,7 +133,7 @@ export class ParticleTextureGenerator {
    */
   private createSmokeTexture(): RenderTexture {
     const graphics = new Graphics();
-    const size = 24;
+    const size = 32; // 增大纹理尺寸
     const centerX = size / 2;
     const centerY = size / 2;
     
@@ -158,7 +158,7 @@ export class ParticleTextureGenerator {
    */
   private createGlowTexture(): RenderTexture {
     const graphics = new Graphics();
-    const size = 32;
+    const size = 32; // 增大纹理尺寸
     const centerX = size / 2;
     const centerY = size / 2;
     
