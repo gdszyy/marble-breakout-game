@@ -31,6 +31,7 @@ export function BulletEditor({
   const [selectedSlot, setSelectedSlot] = useState(currentSlotIndex);
   const [hoveredModule, setHoveredModule] = useState<BulletModule | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const currentSlot = bulletSlots[selectedSlot];
 
   const handleAddModule = (moduleType: BulletModuleType) => {
@@ -60,17 +61,35 @@ export function BulletEditor({
   const handleDragStart = (e: DragEvent<HTMLDivElement>, index: number) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
+    // 设置拖拽图像为半透明
+    if (e.currentTarget) {
+      const dragImage = e.currentTarget.cloneNode(true) as HTMLElement;
+      dragImage.style.opacity = '0.5';
+      document.body.appendChild(dragImage);
+      e.dataTransfer.setDragImage(dragImage, 0, 0);
+      setTimeout(() => document.body.removeChild(dragImage), 0);
+    }
   };
 
   // 拖拽经过
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+  const handleDragOver = (e: DragEvent<HTMLDivElement>, index: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  // 拖拽离开
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
   };
 
   // 放置
   const handleDrop = (e: DragEvent<HTMLDivElement>, dropIndex: number) => {
     e.preventDefault();
+    setDragOverIndex(null);
     
     if (draggedIndex === null || draggedIndex === dropIndex) {
       setDraggedIndex(null);
@@ -89,6 +108,19 @@ export function BulletEditor({
   // 拖拽结束
   const handleDragEnd = () => {
     setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  // 获取预览模块列表（拖拽时显示）
+  const getPreviewModules = (): BulletModule[] => {
+    if (draggedIndex === null || dragOverIndex === null) {
+      return currentSlot.program.modules;
+    }
+
+    const modules = [...currentSlot.program.modules];
+    const [movedModule] = modules.splice(draggedIndex, 1);
+    modules.splice(dragOverIndex, 0, movedModule);
+    return modules;
   };
 
   const energyCost = BulletProgramProcessor.calculateEnergyCost(currentSlot.program);
@@ -132,6 +164,8 @@ export function BulletEditor({
         return '普通';
     }
   };
+
+  const previewModules = getPreviewModules();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -213,7 +247,7 @@ export function BulletEditor({
 
           {/* 配置槽 */}
           <div className="min-h-[100px] bg-gray-900 border-2 border-dashed border-gray-600 rounded-lg p-4 mb-4">
-            {currentSlot.program.modules.length === 0 ? (
+            {previewModules.length === 0 ? (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center text-gray-500">
                   <Info className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -224,40 +258,50 @@ export function BulletEditor({
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {currentSlot.program.modules.map((module, index) => (
-                  <div
-                    key={module.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, index)}
-                    onDragEnd={handleDragEnd}
-                    className={`${getModuleColor(module.type)} border-2 px-4 py-3 rounded-lg text-white font-semibold cursor-move hover:opacity-80 transition-all transform hover:scale-105 relative group ${
-                      draggedIndex === index ? 'opacity-50 scale-95' : ''
-                    }`}
-                    onMouseEnter={() => setHoveredModule(module)}
-                    onMouseLeave={() => setHoveredModule(null)}
-                  >
-                    {/* 拖拽手柄 */}
-                    <div className="absolute -left-1 top-1/2 -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity">
-                      <GripVertical className="w-4 h-4" />
-                    </div>
-                    
-                    <div className="text-sm">{module.name}</div>
-                    <div className="text-xs opacity-75">{module.isModifier ? '修饰' : '基础'}</div>
-                    
-                    {/* 删除按钮 */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveModule(index);
-                      }}
-                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                {previewModules.map((module, index) => {
+                  const isBeingDragged = draggedIndex === index;
+                  const isOriginalPosition = draggedIndex !== null && currentSlot.program.modules[index]?.id === module.id;
+                  const isDragPreview = draggedIndex !== null && dragOverIndex !== null && !isOriginalPosition;
+                  
+                  return (
+                    <div
+                      key={`${module.id}-${index}`}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, currentSlot.program.modules.findIndex(m => m.id === module.id))}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, index)}
+                      onDragEnd={handleDragEnd}
+                      className={`${getModuleColor(module.type)} border-2 px-4 py-3 rounded-lg text-white font-semibold cursor-move transition-all transform relative group ${
+                        isBeingDragged ? 'opacity-30 scale-95' : isDragPreview ? 'opacity-60' : 'hover:opacity-80 hover:scale-105'
+                      }`}
+                      onMouseEnter={() => setHoveredModule(module)}
+                      onMouseLeave={() => setHoveredModule(null)}
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
+                      {/* 拖拽手柄 */}
+                      <div className="absolute -left-1 top-1/2 -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity">
+                        <GripVertical className="w-4 h-4" />
+                      </div>
+                      
+                      <div className="text-sm">{module.name}</div>
+                      <div className="text-xs opacity-75">{module.isModifier ? '修饰' : '基础'}</div>
+                      
+                      {/* 删除按钮 - 只在原始模块上显示 */}
+                      {!isDragPreview && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const originalIndex = currentSlot.program.modules.findIndex(m => m.id === module.id);
+                            handleRemoveModule(originalIndex);
+                          }}
+                          className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -379,7 +423,7 @@ export function BulletEditor({
             <li>• 至少需要一个基础子弹模块才能发射</li>
             <li>• 修饰模块必须在基础子弹<span className="text-yellow-400 font-bold">左侧</span>才生效</li>
             <li>• 多个修饰模块可叠加产生组合效果</li>
-            <li>• <span className="text-green-400 font-bold">拖动</span>模块可调整顺序，点击删除按钮移除</li>
+            <li>• <span className="text-green-400 font-bold">拖动</span>模块可调整顺序，拖拽时会实时预览效果</li>
             <li>• 每个模块消耗10点能量</li>
           </ul>
         </div>
