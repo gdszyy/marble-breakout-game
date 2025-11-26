@@ -14,6 +14,14 @@ export interface ProcessedBulletConfig {
   triggerProgram?: BulletProgram; // 触发的子程序
 }
 
+// 子弹发射组（一组修饰器+一个子弹类型）
+export interface BulletGroup {
+  modifiers: BulletModule[]; // 修饰器列表
+  bulletType: BulletModule; // 子弹类型
+  hasCollisionTrigger: boolean; // 是否有碰撞触发
+  triggerProgram?: BulletProgram; // 碰撞触发的子程序
+}
+
 export class BulletProgramProcessor {
   /**
    * 验证子弹编程是否有效
@@ -33,46 +41,88 @@ export class BulletProgramProcessor {
   }
 
   /**
-   * 解析子弹编程，生成配置
+   * 解析子弹编程为多个发射组
+   * 示例: [齐射+2] [普通] [普通] [穿透] 
+   * => 组1: {modifiers: [齐射+2], bulletType: 普通}
+   *    组2: {modifiers: [], bulletType: 普通}
+   *    组3: {modifiers: [], bulletType: 穿透}
    */
-  static process(program: BulletProgram): ProcessedBulletConfig {
+  static parseGroups(program: BulletProgram): BulletGroup[] {
     const modules = program.modules;
-    
-    // 找到第一个基础子弹模块
-    const baseModuleIndex = modules.findIndex((m) => !m.isModifier);
-    if (baseModuleIndex === -1) {
-      throw new Error('No base bullet module found');
+    const groups: BulletGroup[] = [];
+    let currentModifiers: BulletModule[] = [];
+    let foundCollisionTrigger = false;
+    let collisionTriggerIndex = -1;
+
+    for (let i = 0; i < modules.length; i++) {
+      const module = modules[i];
+
+      // 检查碰撞触发
+      if (module.type === BulletModuleType.COLLISION_TRIGGER) {
+        foundCollisionTrigger = true;
+        collisionTriggerIndex = i;
+        continue;
+      }
+
+      if (module.isModifier) {
+        // 修饰器累积
+        currentModifiers.push(module);
+      } else {
+        // 子弹类型：创建一个发射组
+        const group: BulletGroup = {
+          modifiers: [...currentModifiers],
+          bulletType: module,
+          hasCollisionTrigger: false,
+        };
+
+        // 如果这是碰撞触发之前的最后一个子弹，设置触发程序
+        if (foundCollisionTrigger && collisionTriggerIndex < i) {
+          group.hasCollisionTrigger = true;
+          group.triggerProgram = {
+            modules: modules.slice(collisionTriggerIndex + 1),
+          };
+          foundCollisionTrigger = false; // 只对第一个子弹生效
+        }
+
+        groups.push(group);
+        currentModifiers = []; // 清空修饰器
+      }
     }
 
-    const baseModule = modules[baseModuleIndex];
-    const modifiers = modules.slice(0, baseModuleIndex); // 左侧的修饰模块
+    return groups;
+  }
 
-    // 初始配置
+  /**
+   * 处理单个发射组，生成配置
+   */
+  static processGroup(group: BulletGroup): ProcessedBulletConfig {
     const config: ProcessedBulletConfig = {
-      baseType: baseModule.type,
-      bounceCount: this.getBaseBounceCount(baseModule.type),
+      baseType: group.bulletType.type,
+      bounceCount: this.getBaseBounceCount(group.bulletType.type),
       scatterCount: 1,
       volleyCount: 1,
       damage: GAME_CONFIG.BULLET_DAMAGE,
-      hasCollisionTrigger: false,
+      hasCollisionTrigger: group.hasCollisionTrigger,
+      triggerProgram: group.triggerProgram,
     };
 
-    // 应用修饰模块
-    for (const modifier of modifiers) {
+    // 应用修饰器
+    for (const modifier of group.modifiers) {
       this.applyModifier(config, modifier);
     }
 
-    // 检查碰撞触发
-    const collisionTriggerIndex = modules.findIndex((m) => m.type === BulletModuleType.COLLISION_TRIGGER);
-    if (collisionTriggerIndex !== -1 && collisionTriggerIndex < modules.length - 1) {
-      config.hasCollisionTrigger = true;
-      // 触发的子程序是碰撞触发模块右侧的所有模块
-      config.triggerProgram = {
-        modules: modules.slice(collisionTriggerIndex + 1),
-      };
-    }
-
     return config;
+  }
+
+  /**
+   * 解析子弹编程，生成第一组子弹的配置（兼容旧接口）
+   */
+  static process(program: BulletProgram): ProcessedBulletConfig {
+    const groups = this.parseGroups(program);
+    if (groups.length === 0) {
+      throw new Error('No bullet groups found');
+    }
+    return this.processGroup(groups[0]);
   }
 
   /**
@@ -83,7 +133,7 @@ export class BulletProgramProcessor {
       case BulletModuleType.NORMAL:
         return 0; // 普通子弹不反弹
       case BulletModuleType.PIERCING:
-        return 3; // 穿透子弹默认3次反弹
+        return 3; // 穿透子弹默认3次穿透
       case BulletModuleType.AOE:
         return 0; // AOE子弹不反弹
       default:
@@ -97,6 +147,7 @@ export class BulletProgramProcessor {
   private static applyModifier(config: ProcessedBulletConfig, modifier: BulletModule): void {
     switch (modifier.type) {
       case BulletModuleType.BOUNCE_PLUS:
+        // 反弹+1：对普通子弹增加反弹，对穿透子弹增加穿透次数
         config.bounceCount += 1;
         break;
       case BulletModuleType.SCATTER_PLUS:
@@ -135,7 +186,7 @@ export class BulletProgramProcessor {
   }
 
   /**
-   * 创建子弹实例
+   * 创建子弹实例（单个发射组）
    */
   static createBullets(
     config: ProcessedBulletConfig,
@@ -184,5 +235,36 @@ export class BulletProgramProcessor {
     }
 
     return bullets;
+  }
+
+  /**
+   * 创建延迟发射的所有子弹组
+   * 返回: { bullets: Bullet[], delay: number }[]
+   */
+  static createDelayedBulletGroups(
+    program: BulletProgram,
+    position: { x: number; y: number },
+    direction: { x: number; y: number }
+  ): Array<{ bullets: Bullet[]; delay: number }> {
+    const groups = this.parseGroups(program);
+    const result: Array<{ bullets: Bullet[]; delay: number }> = [];
+
+    for (let i = 0; i < groups.length; i++) {
+      const group = groups[i];
+      const config = this.processGroup(group);
+      const bullets = this.createBullets(
+        config,
+        position,
+        direction,
+        { modules: [group.bulletType] } // 单个子弹的program
+      );
+
+      result.push({
+        bullets,
+        delay: i * 0.2, // 每组延迟0.2秒
+      });
+    }
+
+    return result;
   }
 }

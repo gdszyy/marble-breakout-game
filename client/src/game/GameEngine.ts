@@ -1,7 +1,7 @@
 // 游戏引擎 - 完整实现四阶段循环系统
 
 import { GameEventType, BulletModuleType, MarbleState, ModuleRarity } from '../types/game';
-import type { GameState, Brick, Bullet, Player, Marble, Bumper, BulletSlot, BulletModule } from '../types/game';
+import type { GameState, Brick, Bullet, Player, Marble, Bumper, BulletSlot, BulletModule, BulletProgram } from '../types/game';
 import { GAME_CONFIG } from './config';
 import { generateId, circleRectCollision, normalize, distance, randomFloat } from './utils';
 import { EventManager } from './EventManager';
@@ -345,6 +345,15 @@ export class GameEngine {
             this.state.score += 10;
           }
 
+          // 碰撞触发：在碰撞点发射新子弹
+          if (bullet.triggerProgram) {
+            const triggerBullets = this.createTriggeredBullets(
+              bullet.triggerProgram,
+              bullet.position
+            );
+            this.state.bullets.push(...triggerBullets);
+          }
+
           if (bullet.bounceCount > 0) {
             const brickCenter = {
               x: brick.position.x + brick.size.width / 2,
@@ -405,20 +414,69 @@ export class GameEngine {
       return;
     }
 
-    // 解析子弹编程
-    const config = BulletProgramProcessor.process(slot.program);
-    
-    // 生成子弹（支持齐射和散射）
-    const bullets = BulletProgramProcessor.createBullets(
-      config,
+    // 生成延迟发射的子弹组
+    const bulletGroups = BulletProgramProcessor.createDelayedBulletGroups(
+      slot.program,
       this.state.player.position,
-      direction,
-      slot.program
+      direction
     );
 
-    this.state.bullets.push(...bullets);
+    // 立即发射第一组
+    if (bulletGroups.length > 0) {
+      this.state.bullets.push(...bulletGroups[0].bullets);
+    }
+
+    // 延迟发射其他组
+    for (let i = 1; i < bulletGroups.length; i++) {
+      const group = bulletGroups[i];
+      setTimeout(() => {
+        this.state.bullets.push(...group.bullets);
+      }, group.delay * 1000);
+    }
+
     slot.energy -= slot.energyCost;
     this.state.errorMessage = null;
+  }
+
+  // 创建碰撞触发的子弹
+  private createTriggeredBullets(
+    triggerProgram: BulletProgram,
+    position: { x: number; y: number }
+  ): Bullet[] {
+    const groups = BulletProgramProcessor.parseGroups(triggerProgram);
+    const allBullets: Bullet[] = [];
+
+    for (const group of groups) {
+      const config = BulletProgramProcessor.processGroup(group);
+      
+      // 向四周发射（散射效果）
+      const angleCount = Math.max(config.scatterCount, config.volleyCount);
+      const angles = BulletProgramProcessor.generateAngles(0, angleCount, 360);
+
+      for (const angle of angles) {
+        const bullet: Bullet = {
+          id: `bullet-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          position: { ...position },
+          velocity: {
+            x: Math.cos(angle) * GAME_CONFIG.BULLET_SPEED,
+            y: Math.sin(angle) * GAME_CONFIG.BULLET_SPEED,
+          },
+          program: { modules: [group.bulletType] },
+          bounceCount: config.bounceCount,
+          damage: config.damage,
+          radius: GAME_CONFIG.BULLET_RADIUS,
+        };
+
+        // 穿透子弹特殊处理
+        if (config.baseType === BulletModuleType.PIERCING) {
+          bullet.lastDamageTime = 0;
+        }
+
+        allBullets.push(bullet);
+      }
+    }
+
+    return allBullets;
   }
 
   spawnBrickRow(): void {
