@@ -103,6 +103,59 @@ export default function Game() {
       container.addChild(graphics);
     }
 
+    // 渲染缓冲器
+    for (const bumper of state.bumperArray) {
+      const graphics = new PIXI.Graphics();
+      const color = bumper.cooldown > 0 ? COLORS.BUMPER_COOLDOWN : COLORS.BUMPER;
+      graphics.circle(bumper.position.x, bumper.position.y, GAME_CONFIG.BUMPER_RADIUS);
+      graphics.fill(color);
+      graphics.stroke({ width: 2, color: 0xffffff });
+      container.addChild(graphics);
+
+      // 显示模块类型
+      const text = new PIXI.Text({
+        text: bumper.module.type.substring(0, 3),
+        style: {
+          fontSize: 10,
+          fill: 0xffffff,
+          align: 'center',
+        },
+      });
+      text.x = bumper.position.x - text.width / 2;
+      text.y = bumper.position.y - text.height / 2;
+      container.addChild(text);
+    }
+
+    // 渲染弹珠
+    for (const marble of state.marbles) {
+      const graphics = new PIXI.Graphics();
+      graphics.circle(marble.position.x, marble.position.y, marble.radius);
+      graphics.fill(COLORS.MARBLE);
+      graphics.stroke({ width: 2, color: 0x00ffff });
+      container.addChild(graphics);
+    }
+
+    // 渲染子弹槽
+    for (let i = 0; i < state.bulletSlots.length; i++) {
+      const slot = state.bulletSlots[i];
+      const graphics = new PIXI.Graphics();
+      graphics.rect(slot.position.x, slot.position.y, slot.width, GAME_CONFIG.SLOT_HEIGHT);
+      graphics.stroke({ width: 2, color: i === state.player.currentBulletSlot ? 0xffff00 : 0x666666 });
+      container.addChild(graphics);
+
+      const text = new PIXI.Text({
+        text: `${slot.name}\n能量: ${Math.floor(slot.energy)}/${slot.energyCost}`,
+        style: {
+          fontSize: 10,
+          fill: 0xffffff,
+          align: 'center',
+        },
+      });
+      text.x = slot.position.x + 5;
+      text.y = slot.position.y + 5;
+      container.addChild(text);
+    }
+
     const player = new PIXI.Graphics();
     player.moveTo(state.player.position.x, state.player.position.y - 15);
     player.lineTo(state.player.position.x - 15, state.player.position.y + 15);
@@ -161,6 +214,12 @@ export default function Game() {
     }
   };
 
+  const handleNextPhase = () => {
+    if (engineRef.current) {
+      engineRef.current.nextPhase();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
       <div className="mb-4">
@@ -191,12 +250,21 @@ export default function Game() {
         >
           砖块下落
         </button>
+        <button
+          onClick={handleNextPhase}
+          className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold"
+        >
+          下一阶段
+        </button>
       </div>
 
       {gameState && (
-        <div className="mt-4 text-white text-sm">
+        <div className="mt-4 text-white text-sm space-y-1">
+          <p className="text-lg font-bold">当前阶段: {gameState.currentEvent}</p>
           <p>子弹数量: {gameState.bullets.length}</p>
           <p>砖块数量: {gameState.bricks.length}</p>
+          <p>弹珠数量: {gameState.marbles.length}</p>
+          <p>待发射弹珠: {gameState.pendingMarbleCount}</p>
         </div>
       )}
     </div>

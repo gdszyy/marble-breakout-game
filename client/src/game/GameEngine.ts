@@ -1,15 +1,21 @@
-// 简化版游戏引擎 - MVP实现
+// 游戏引擎 - 完整实现四阶段循环系统
 
-import type { GameState, GameEventType, Brick, Bullet, Player, BulletModuleType } from '../types/game';
-import { GAME_CONFIG, COLORS } from './config';
-import { generateId, circleRectCollision, normalize, distance, lerpColor } from './utils';
+import { GameEventType, BulletModuleType, MarbleState, ModuleRarity } from '../types/game';
+import type { GameState, Brick, Bullet, Player, Marble, Bumper, BulletSlot, BulletModule } from '../types/game';
+import { GAME_CONFIG } from './config';
+import { generateId, circleRectCollision, normalize, distance, randomFloat } from './utils';
+import { EventManager } from './EventManager';
+import { ModuleRegistry } from './ModuleRegistry';
+import { BulletProgramProcessor } from './BulletProgramProcessor';
 
 export class GameEngine {
   private state: GameState;
-  private lastUpdate: number = 0;
+  private eventManager: EventManager;
 
   constructor() {
     this.state = this.createInitialState();
+    this.eventManager = new EventManager(this.state);
+    this.setupEventHandlers();
   }
 
   private createInitialState(): GameState {
@@ -20,31 +26,46 @@ export class GameEngine {
       currentBulletSlot: 0,
     };
 
-    // 创建初始砖块
-    const bricks: Brick[] = [];
-    for (let i = 0; i < GAME_CONFIG.BRICKS_PER_ROW; i++) {
-      bricks.push({
-        id: generateId(),
-        position: {
-          x: 50 + i * (GAME_CONFIG.BRICK_WIDTH + GAME_CONFIG.BRICK_SPACING),
-          y: 100,
-        },
-        size: { width: GAME_CONFIG.BRICK_WIDTH, height: GAME_CONFIG.BRICK_HEIGHT },
-        health: 10,
-        maxHealth: 10,
-        row: 0,
-      });
-    }
+    // 初始化子弹槽
+    const bulletSlots: BulletSlot[] = [
+      {
+        id: 'slot-a',
+        name: '槽位A',
+        position: { x: 50, y: GAME_CONFIG.CANVAS_HEIGHT - 120 },
+        width: GAME_CONFIG.SLOT_WIDTH,
+        program: { modules: [] },
+        energy: 0,
+        energyCost: 0,
+      },
+      {
+        id: 'slot-b',
+        name: '槽位B',
+        position: { x: 170, y: GAME_CONFIG.CANVAS_HEIGHT - 120 },
+        width: GAME_CONFIG.SLOT_WIDTH,
+        program: { modules: [] },
+        energy: 0,
+        energyCost: 0,
+      },
+      {
+        id: 'slot-c',
+        name: '槽位C',
+        position: { x: 290, y: GAME_CONFIG.CANVAS_HEIGHT - 120 },
+        width: GAME_CONFIG.SLOT_WIDTH,
+        program: { modules: [] },
+        energy: 0,
+        energyCost: 0,
+      },
+    ];
 
     return {
-      currentEvent: 'PLAYER_ACTION' as GameEventType,
+      currentEvent: GameEventType.BRICK_SPAWN,
       player,
-      bricks,
+      bricks: [],
       bullets: [],
       aoeRings: [],
       bumperArray: [],
       rewardBumpers: [],
-      bulletSlots: [],
+      bulletSlots,
       marbles: [],
       currentBumperTemplate: {
         id: 'default',
@@ -53,14 +74,14 @@ export class GameEngine {
         rewardBumpers: [],
       },
       moduleInventory: {
-        NORMAL: 5,
-        PIERCING: 5,
-        AOE: 5,
-        BOUNCE_PLUS: 5,
-        SCATTER_PLUS: 5,
-        VOLLEY_PLUS: 5,
-        COLLISION_TRIGGER: 5,
-      } as Record<BulletModuleType, number>,
+        [BulletModuleType.NORMAL]: 10,
+        [BulletModuleType.PIERCING]: 5,
+        [BulletModuleType.AOE]: 5,
+        [BulletModuleType.BOUNCE_PLUS]: 5,
+        [BulletModuleType.SCATTER_PLUS]: 3,
+        [BulletModuleType.VOLLEY_PLUS]: 3,
+        [BulletModuleType.COLLISION_TRIGGER]: 2,
+      },
       round: 1,
       score: 0,
       isGameOver: false,
@@ -93,6 +114,46 @@ export class GameEngine {
     };
   }
 
+  private setupEventHandlers() {
+    this.eventManager.registerHandler(GameEventType.BRICK_SPAWN, () => this.handleBrickSpawn());
+    this.eventManager.registerHandler(GameEventType.BULLET_LOADING, () => this.handleBulletLoading());
+    this.eventManager.registerHandler(GameEventType.PLAYER_ACTION, () => this.handlePlayerAction());
+    this.eventManager.registerHandler(GameEventType.BRICK_ACTION, () => this.handleBrickAction());
+  }
+
+  // ========== 阶段处理器 ==========
+
+  private handleBrickSpawn() {
+    console.log('[Phase] Brick Spawn');
+    this.spawnBrickRow();
+    setTimeout(() => this.eventManager.nextPhase(), 500);
+  }
+
+  private handleBulletLoading() {
+    console.log('[Phase] Bullet Loading');
+    this.initializeBumpers();
+    this.state.pendingMarbleCount = 3;
+    
+    if (this.state.marbleLaunchMode === 'auto') {
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => this.launchMarble(), i * 300);
+      }
+    }
+  }
+
+  private handlePlayerAction() {
+    console.log('[Phase] Player Action');
+  }
+
+  private handleBrickAction() {
+    console.log('[Phase] Brick Action');
+    this.moveBricksDown();
+    this.checkBricksTouchBottom();
+    setTimeout(() => this.eventManager.nextPhase(), 500);
+  }
+
+  // ========== 游戏循环 ==========
+
   getState(): GameState {
     return this.state;
   }
@@ -100,31 +161,22 @@ export class GameEngine {
   update(deltaTime: number): void {
     if (this.state.isGameOver) return;
 
-    // 更新子弹
     this.updateBullets(deltaTime);
-
-    // 更新AOE圆环
+    this.updateMarbles(deltaTime);
     this.updateAOERings(deltaTime);
-
-    // 检测碰撞
+    this.updateBumperCooldowns(deltaTime);
     this.checkCollisions();
-
-    // 清理越界子弹
-    this.cleanupBullets();
-
-    // 检查游戏结束条件
-    this.checkGameOver();
+    this.cleanup();
+    this.eventManager.autoAdvance();
   }
 
   private updateBullets(deltaTime: number): void {
     const dt = deltaTime / 1000;
 
     for (const bullet of this.state.bullets) {
-      // 更新位置
       bullet.position.x += bullet.velocity.x * dt;
       bullet.position.y += bullet.velocity.y * dt;
 
-      // 边界碰撞
       if (bullet.position.x - bullet.radius < 0) {
         bullet.position.x = bullet.radius;
         bullet.velocity.x = -bullet.velocity.x * GAME_CONFIG.BORDER_BOUNCE_DECAY;
@@ -140,13 +192,99 @@ export class GameEngine {
     }
   }
 
-  private updateAOERings(deltaTime: number): void {
+  private updateMarbles(deltaTime: number): void {
     const dt = deltaTime / 1000;
 
+    for (const marble of this.state.marbles) {
+      if (marble.state !== MarbleState.FALLING) continue;
+
+      marble.velocity.y += GAME_CONFIG.MARBLE_GRAVITY * dt;
+      marble.position.x += marble.velocity.x * dt;
+      marble.position.y += marble.velocity.y * dt;
+
+      if (marble.position.x - marble.radius < 0) {
+        marble.position.x = marble.radius;
+        marble.velocity.x = -marble.velocity.x * GAME_CONFIG.BORDER_BOUNCE_DECAY;
+      }
+      if (marble.position.x + marble.radius > GAME_CONFIG.CANVAS_WIDTH) {
+        marble.position.x = GAME_CONFIG.CANVAS_WIDTH - marble.radius;
+        marble.velocity.x = -marble.velocity.x * GAME_CONFIG.BORDER_BOUNCE_DECAY;
+      }
+
+      this.checkMarbleBumperCollision(marble);
+      this.checkMarbleSlotCollision(marble);
+    }
+  }
+
+  private checkMarbleBumperCollision(marble: Marble): void {
+    for (const bumper of this.state.bumperArray) {
+      if (bumper.cooldown > 0) continue;
+
+      const bumperRadius = GAME_CONFIG.BUMPER_RADIUS;
+      const dist = distance(marble.position, bumper.position);
+      
+      if (dist < marble.radius + bumperRadius) {
+        const normal = normalize({
+          x: marble.position.x - bumper.position.x,
+          y: marble.position.y - bumper.position.y,
+        });
+        const speed = Math.sqrt(marble.velocity.x ** 2 + marble.velocity.y ** 2);
+        marble.velocity.x = normal.x * speed * GAME_CONFIG.MARBLE_BOUNCE_DECAY;
+        marble.velocity.y = normal.y * speed * GAME_CONFIG.MARBLE_BOUNCE_DECAY;
+
+        marble.collectedModules.push(bumper.module);
+        marble.bounceCount++;
+
+        bumper.cooldown = bumper.baseCooldown + bumper.hitCount * 100;
+        bumper.hitCount++;
+      }
+    }
+  }
+
+  private checkMarbleSlotCollision(marble: Marble): void {
+    for (const slot of this.state.bulletSlots) {
+      const slotBottom = slot.position.y + GAME_CONFIG.SLOT_HEIGHT;
+      
+      if (
+        marble.position.x >= slot.position.x &&
+        marble.position.x <= slot.position.x + slot.width &&
+        marble.position.y >= slot.position.y &&
+        marble.position.y <= slotBottom
+      ) {
+        marble.state = MarbleState.IN_SLOT;
+        marble.targetSlot = slot.id;
+        this.handleMarbleInSlot(marble, slot);
+      }
+    }
+  }
+
+  private handleMarbleInSlot(marble: Marble, slot: BulletSlot): void {
+    if (slot.program.modules.length === 0) {
+      slot.program.modules = marble.collectedModules;
+      slot.energyCost = marble.collectedModules.length * GAME_CONFIG.ENERGY_PER_MODULE;
+      slot.energy = slot.energyCost;
+    } else {
+      const energyGain = marble.collectedModules.length * GAME_CONFIG.ENERGY_PER_MODULE * GAME_CONFIG.ENERGY_FULL_SLOT_EFFICIENCY;
+      slot.energy += energyGain;
+    }
+
+    this.state.pendingMarbleCount--;
+  }
+
+  private updateAOERings(deltaTime: number): void {
+    const dt = deltaTime / 1000;
     this.state.aoeRings = this.state.aoeRings.filter((ring) => {
       ring.currentRadius += ring.expandSpeed * dt;
       return ring.currentRadius < ring.maxRadius;
     });
+  }
+
+  private updateBumperCooldowns(deltaTime: number): void {
+    for (const bumper of this.state.bumperArray) {
+      if (bumper.cooldown > 0) {
+        bumper.cooldown = Math.max(0, bumper.cooldown - deltaTime);
+      }
+    }
   }
 
   private checkCollisions(): void {
@@ -165,7 +303,6 @@ export class GameEngine {
             brick.size.height
           )
         ) {
-          // 造成伤害
           brick.health -= bullet.damage;
 
           if (brick.health <= 0) {
@@ -173,9 +310,7 @@ export class GameEngine {
             this.state.score += 10;
           }
 
-          // 反弹或移除子弹
           if (bullet.bounceCount > 0) {
-            // 计算反弹方向
             const brickCenter = {
               x: brick.position.x + brick.size.width / 2,
               y: brick.position.y + brick.size.height / 2,
@@ -185,7 +320,6 @@ export class GameEngine {
               y: bullet.position.y - brickCenter.y,
             });
 
-            // 反射速度
             const speed = Math.sqrt(bullet.velocity.x ** 2 + bullet.velocity.y ** 2);
             bullet.velocity.x = normal.x * speed;
             bullet.velocity.y = normal.y * speed;
@@ -199,50 +333,57 @@ export class GameEngine {
       }
     }
 
-    // 移除被摧毁的砖块
     this.state.bricks = this.state.bricks.filter((b) => !bricksToRemove.includes(b.id));
-
-    // 移除消失的子弹
     this.state.bullets = this.state.bullets.filter((b) => !bulletsToRemove.includes(b.id));
   }
 
-  private cleanupBullets(): void {
+  private cleanup(): void {
     this.state.bullets = this.state.bullets.filter(
       (bullet) => bullet.position.y < GAME_CONFIG.CANVAS_HEIGHT + 50
     );
-  }
 
-  private checkGameOver(): void {
-    // 检查砖块是否触及底部
-    for (const brick of this.state.bricks) {
-      if (brick.position.y + brick.size.height >= this.state.player.position.y) {
-        this.state.player.health--;
-        this.state.bricks = this.state.bricks.filter((b) => b.id !== brick.id);
-
-        if (this.state.player.health <= 0) {
-          this.state.isGameOver = true;
-          this.state.currentEvent = 'GAME_OVER' as GameEventType;
+    this.state.marbles = this.state.marbles.filter((marble) => {
+      if (marble.position.y > GAME_CONFIG.CANVAS_HEIGHT + 50) {
+        if (marble.state === MarbleState.FALLING) {
+          this.state.pendingMarbleCount--;
         }
-        break;
+        return false;
       }
-    }
+      return marble.state === MarbleState.FALLING;
+    });
   }
+
+  // ========== 游戏操作 ==========
 
   shootBullet(direction: { x: number; y: number }): void {
-    const bullet: Bullet = {
-      id: generateId(),
-      position: { ...this.state.player.position },
-      velocity: {
-        x: direction.x * GAME_CONFIG.BULLET_SPEED,
-        y: direction.y * GAME_CONFIG.BULLET_SPEED,
-      },
-      program: { modules: [] },
-      bounceCount: 1,
-      damage: GAME_CONFIG.BULLET_DAMAGE,
-      radius: GAME_CONFIG.BULLET_RADIUS,
-    };
+    const slot = this.state.bulletSlots[this.state.player.currentBulletSlot];
+    
+    // 验证编程
+    const validation = BulletProgramProcessor.validate(slot.program);
+    if (!validation.valid) {
+      this.state.errorMessage = validation.error || '子弹编程无效';
+      return;
+    }
 
-    this.state.bullets.push(bullet);
+    if (slot.energy < slot.energyCost) {
+      this.state.errorMessage = '能量不足';
+      return;
+    }
+
+    // 解析子弹编程
+    const config = BulletProgramProcessor.process(slot.program);
+    
+    // 生成子弹（支持齐射和散射）
+    const bullets = BulletProgramProcessor.createBullets(
+      config,
+      this.state.player.position,
+      direction,
+      slot.program
+    );
+
+    this.state.bullets.push(...bullets);
+    slot.energy -= slot.energyCost;
+    this.state.errorMessage = null;
   }
 
   spawnBrickRow(): void {
@@ -266,10 +407,87 @@ export class GameEngine {
       brick.position.y += GAME_CONFIG.GRID_SIZE;
       brick.row++;
     }
-    this.state.round++;
+  }
+
+  checkBricksTouchBottom(): void {
+    const touchedBricks = this.state.bricks.filter(
+      (brick) => brick.position.y + brick.size.height >= this.state.player.position.y
+    );
+
+    for (const brick of touchedBricks) {
+      this.state.player.health--;
+      this.state.bricks = this.state.bricks.filter((b) => b.id !== brick.id);
+
+      if (this.state.player.health <= 0) {
+        this.state.isGameOver = true;
+        this.state.currentEvent = GameEventType.GAME_OVER;
+      }
+    }
+  }
+
+  launchMarble(): void {
+    const marble: Marble = {
+      id: generateId(),
+      position: { x: GAME_CONFIG.CANVAS_WIDTH / 2, y: 50 },
+      velocity: {
+        x: randomFloat(GAME_CONFIG.MARBLE_INITIAL_SPEED_X_RANGE[0], GAME_CONFIG.MARBLE_INITIAL_SPEED_X_RANGE[1]),
+        y: 0,
+      },
+      radius: GAME_CONFIG.MARBLE_RADIUS,
+      state: MarbleState.FALLING,
+      collectedModules: [],
+      bounceCount: 0,
+    };
+
+    this.state.marbles.push(marble);
+  }
+
+  initializeBumpers(): void {
+    this.state.bumperArray = [];
+    
+    const layers = [
+      { y: 200, count: 3 },
+      { y: 280, count: 3 },
+      { y: 360, count: 2 },
+    ];
+
+    const moduleTypes = [
+      BulletModuleType.NORMAL,
+      BulletModuleType.NORMAL,
+      BulletModuleType.PIERCING,
+      BulletModuleType.AOE,
+      BulletModuleType.BOUNCE_PLUS,
+      BulletModuleType.SCATTER_PLUS,
+      BulletModuleType.VOLLEY_PLUS,
+      BulletModuleType.COLLISION_TRIGGER,
+    ];
+
+    let moduleIndex = 0;
+    for (const layer of layers) {
+      const spacing = GAME_CONFIG.CANVAS_WIDTH / (layer.count + 1);
+      for (let i = 0; i < layer.count; i++) {
+        const moduleType = moduleTypes[moduleIndex % moduleTypes.length];
+        const bumper: Bumper = {
+          id: generateId(),
+          position: { x: spacing * (i + 1), y: layer.y },
+          module: ModuleRegistry.createModuleInstance(moduleType),
+          cooldown: 0,
+          baseCooldown: GAME_CONFIG.BUMPER_COOLDOWN,
+          hitCount: 0,
+        };
+        this.state.bumperArray.push(bumper);
+        moduleIndex++;
+      }
+    }
+  }
+
+  nextPhase(): void {
+    this.eventManager.nextPhase();
   }
 
   reset(): void {
     this.state = this.createInitialState();
+    this.eventManager = new EventManager(this.state);
+    this.setupEventHandlers();
   }
 }
