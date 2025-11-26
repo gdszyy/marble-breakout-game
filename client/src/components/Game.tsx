@@ -4,6 +4,7 @@ import * as PIXI from 'pixi.js';
 import { GameEngine } from '../game/GameEngine';
 import { GAME_CONFIG, COLORS } from '../game/config';
 import { lerpColor } from '../game/utils';
+import { BulletModuleType } from '../types/game';
 import { TrajectoryPredictor } from '../game/TrajectoryPredictor';
 import type { TrajectorySegment } from '../game/TrajectoryPredictor';
 import { AssetLoader } from '../game/AssetLoader';
@@ -361,6 +362,35 @@ export default function Game() {
       const state = engineRef.current.getState();
       const slot = state.bulletSlots.find((s: any) => s.id === slotId);
       if (slot) {
+        // 计算模块差异，更新库存
+        const oldModules = slot.program.modules;
+        const newModules = modules;
+        
+        // 找出新增的模块
+        const addedModules = newModules.filter(
+          (newMod: any) => !oldModules.some((oldMod: any) => oldMod.id === newMod.id)
+        );
+        
+        // 找出移除的模块
+        const removedModules = oldModules.filter(
+          (oldMod: any) => !newModules.some((newMod: any) => newMod.id === oldMod.id)
+        );
+        
+        // 更新库存
+        for (const module of addedModules) {
+          const moduleType = module.type as keyof typeof state.moduleInventory;
+          if (state.moduleInventory[moduleType] !== undefined && state.moduleInventory[moduleType] > 0) {
+            state.moduleInventory[moduleType]--;
+          }
+        }
+        
+        for (const module of removedModules) {
+          const moduleType = module.type as keyof typeof state.moduleInventory;
+          if (state.moduleInventory[moduleType] !== undefined) {
+            state.moduleInventory[moduleType]++;
+          }
+        }
+        
         slot.program.modules = modules;
         const energyCost = modules.length * 10;
         slot.energyCost = energyCost;
@@ -377,55 +407,66 @@ export default function Game() {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
-      <div className="mb-4">
-        <h1 className="text-3xl font-bold text-white text-center mb-2">
-          弹珠编程打砖块 - 炼金术士守城
-        </h1>
-        <p className="text-gray-400 text-center">点击屏幕发射魔药攻击晶石魔像</p>
-      </div>
 
-      <div ref={canvasRef} className="border-4 border-blue-500 rounded-lg shadow-2xl" />
+      <div ref={canvasRef} className="border-4 border-blue-500 rounded-lg shadow-2xl mb-4" />
 
-      <div className="mt-4 flex gap-2">
+      <div className="flex flex-wrap gap-3 justify-center">
         <button
           onClick={handleReset}
-          className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold"
+          className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
         >
-          重新开始
+          🔄 重新开始
         </button>
         <button
           onClick={handleSpawnBricks}
-          className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold"
+          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
         >
-          生成砖块
+          🧱 生成砖块
         </button>
         <button
           onClick={handleMoveBricks}
-          className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold"
+          className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
         >
-          砖块下落
+          ⬇️ 砖块下落
         </button>
         <button
           onClick={handleNextPhase}
-          className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold"
+          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
         >
-          下一阶段
+          ⏩ 下一阶段
         </button>
         <button
           onClick={() => setIsEditorOpen(true)}
-          className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-semibold"
+          className="px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all animate-pulse"
         >
-          子弹编程
+          ⚙️ 子弹编程
         </button>
       </div>
 
       {gameState && (
-        <div className="mt-4 text-white text-sm space-y-1">
-          <p className="text-lg font-bold">当前阶段: {gameState.currentEvent}</p>
-          <p>子弹数量: {gameState.bullets.length}</p>
-          <p>砖块数量: {gameState.bricks.length}</p>
-          <p>弹珠数量: {gameState.marbles.length}</p>
-          <p>待发射弹珠: {gameState.pendingMarbleCount}</p>
+        <div className="mt-6 bg-gray-800 border-2 border-gray-700 rounded-xl p-4 max-w-md">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="bg-gray-900 rounded-lg p-3">
+              <div className="text-gray-400 text-xs mb-1">当前阶段</div>
+              <div className="text-cyan-400 font-bold">{gameState.currentEvent}</div>
+            </div>
+            <div className="bg-gray-900 rounded-lg p-3">
+              <div className="text-gray-400 text-xs mb-1">子弹数量</div>
+              <div className="text-green-400 font-bold">{gameState.bullets.length}</div>
+            </div>
+            <div className="bg-gray-900 rounded-lg p-3">
+              <div className="text-gray-400 text-xs mb-1">砖块数量</div>
+              <div className="text-red-400 font-bold">{gameState.bricks.length}</div>
+            </div>
+            <div className="bg-gray-900 rounded-lg p-3">
+              <div className="text-gray-400 text-xs mb-1">弹珠数量</div>
+              <div className="text-blue-400 font-bold">{gameState.marbles.length}</div>
+            </div>
+            <div className="bg-gray-900 rounded-lg p-3 col-span-2">
+              <div className="text-gray-400 text-xs mb-1">待发射弹珠</div>
+              <div className="text-yellow-400 font-bold text-lg">{gameState.pendingMarbleCount}</div>
+            </div>
+          </div>
         </div>
       )}
 
