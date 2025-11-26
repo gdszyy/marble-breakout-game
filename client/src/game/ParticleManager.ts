@@ -3,7 +3,8 @@
  * 使用PixiJS v8原生粒子系统
  */
 
-import { Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Container, Graphics, Sprite, Texture, Renderer } from 'pixi.js';
+import { ParticleTextureGenerator, ParticleTextureType } from './ParticleTextures';
 
 export interface SimpleParticle {
   sprite: Sprite;
@@ -28,16 +29,12 @@ export interface ParticleEffect {
 
 export class ParticleManager {
   private particleEffects: ParticleEffect[] = [];
-  private particleTexture: Texture;
+  private textureGenerator: ParticleTextureGenerator;
+  private defaultTexture: Texture;
 
-  constructor() {
-    // 创建一个简单的圆形纹理作为粒子
-    const graphics = new Graphics();
-    graphics.circle(0, 0, 4);
-    graphics.fill({ color: 0xffffff });
-    // PixiJS v8使用Texture.from或直接使用Graphics作为纹理
-    // 这里我们使用Texture.WHITE作为简单的白色粒子
-    this.particleTexture = Texture.WHITE;
+  constructor(renderer: Renderer) {
+    this.textureGenerator = new ParticleTextureGenerator(renderer);
+    this.defaultTexture = this.textureGenerator.getTexture(ParticleTextureType.CIRCLE) || Texture.WHITE;
   }
 
   /**
@@ -50,7 +47,7 @@ export class ParticleManager {
 
     const particles: SimpleParticle[] = [];
 
-    // 创建20个火花粒子
+    // 创建20个火花粒子（使用SPARK纹理）
     for (let i = 0; i < 20; i++) {
       const angle = (Math.PI * 2 * i) / 20;
       const speed = 100 + Math.random() * 100;
@@ -63,7 +60,8 @@ export class ParticleManager {
         0.2 + Math.random() * 0.2,
         0.5,
         0.1,
-        0xffff00 // 黄色
+        0xffff00, // 黄色
+        ParticleTextureType.SPARK
       );
       particles.push(particle);
     }
@@ -123,7 +121,8 @@ export class ParticleManager {
       0.3 + Math.random() * 0.2,
       0.3,
       0.1,
-      0x00aaff // 蓝色
+      0x00aaff, // 蓝色
+      ParticleTextureType.SMOKE
     );
     effect.particles.push(particle);
   }
@@ -138,7 +137,7 @@ export class ParticleManager {
 
     const particles: SimpleParticle[] = [];
 
-    // 创建30个爆炸粒子
+    // 创建30个爆炸粒子（使用STAR纹理）
     for (let i = 0; i < 30; i++) {
       const angle = (Math.PI * 2 * i) / 30;
       const speed = 150 + Math.random() * 150;
@@ -151,7 +150,8 @@ export class ParticleManager {
         0.3 + Math.random() * 0.3,
         0.8,
         0.2,
-        0xffaa00 // 橙色
+        0xffaa00, // 橙色
+        ParticleTextureType.STAR
       );
       particles.push(particle);
     }
@@ -190,7 +190,7 @@ export class ParticleManager {
       lastEmit: Date.now(),
     };
 
-    // 初始化一些粒子形成圆环
+    // 初始化一些粒子形成圆环（使用GLOW纹理）
     for (let i = 0; i < 50; i++) {
       const angle = (Math.PI * 2 * i) / 50;
       const px = Math.cos(angle) * radius;
@@ -204,7 +204,8 @@ export class ParticleManager {
         0.5 + Math.random() * 0.5,
         0.2,
         0.1,
-        0xff00ff // 紫色
+        0xff00ff, // 紫色
+        ParticleTextureType.GLOW
       );
       effect.particles.push(particle);
     }
@@ -225,9 +226,13 @@ export class ParticleManager {
     life: number,
     scaleStart: number,
     scaleEnd: number,
-    tint: number
+    tint: number,
+    textureType?: ParticleTextureType
   ): SimpleParticle {
-    const sprite = new Sprite(this.particleTexture);
+    const texture = textureType 
+      ? (this.textureGenerator.getTexture(textureType) || this.defaultTexture)
+      : this.defaultTexture;
+    const sprite = new Sprite(texture);
     sprite.anchor.set(0.5);
     sprite.position.set(x, y);
     sprite.scale.set(scaleStart);
@@ -348,5 +353,6 @@ export class ParticleManager {
       this.destroyEffect(effect);
     }
     this.particleEffects = [];
+    this.textureGenerator.destroy();
   }
 }

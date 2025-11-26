@@ -69,7 +69,7 @@ export default function Game() {
       app.stage.addChild(gameContainer);
       
       // 初始化粒子管理器
-      const particleManager = new ParticleManager();
+      const particleManager = new ParticleManager(app.renderer);
       particleManagerRef.current = particleManager;
 
       let lastTime = Date.now();
@@ -306,6 +306,44 @@ export default function Game() {
           particleManager.destroyEffect(trailEffect);
         }
         bulletTrails.delete(bulletId);
+      }
+    }
+
+    // 渲染AOE圆环和粒子效果
+    const aoeRingParticles = bulletTrailsRef.current; // 复用bulletTrails Map存储AOE粒子
+    for (const ring of state.aoeRings) {
+      // 渲染AOE圆环
+      const graphics = new PIXI.Graphics();
+      graphics.circle(ring.position.x, ring.position.y, ring.currentRadius);
+      graphics.stroke({ width: 3, color: 0xff00ff, alpha: 0.6 });
+      container.addChild(graphics);
+      
+      // 为AOE圆环创建粒子效果
+      if (particleManager && !aoeRingParticles.has(`aoe-${ring.id}`)) {
+        const particleEffect = particleManager.createAOERing(
+          container,
+          ring.position.x,
+          ring.position.y,
+          ring.currentRadius
+        );
+        aoeRingParticles.set(`aoe-${ring.id}`, particleEffect);
+      }
+      
+      // 更新AOE粒子位置（跟随圆环扩展）
+      const particleEffect = aoeRingParticles.get(`aoe-${ring.id}`);
+      if (particleManager && particleEffect) {
+        particleManager.updateParticlePosition(particleEffect, ring.position.x, ring.position.y);
+      }
+    }
+    
+    // 清理已消失的AOE粒子
+    const currentAOEIds = new Set(state.aoeRings.map(r => `aoe-${r.id}`));
+    for (const [aoeId, particleEffect] of Array.from(aoeRingParticles.entries())) {
+      if (aoeId.startsWith('aoe-') && !currentAOEIds.has(aoeId)) {
+        if (particleManager) {
+          particleManager.destroyEffect(particleEffect);
+        }
+        aoeRingParticles.delete(aoeId);
       }
     }
 
