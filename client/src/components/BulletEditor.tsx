@@ -61,14 +61,6 @@ export function BulletEditor({
   const handleDragStart = (e: DragEvent<HTMLDivElement>, index: number) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
-    // 设置拖拽图像为半透明
-    if (e.currentTarget) {
-      const dragImage = e.currentTarget.cloneNode(true) as HTMLElement;
-      dragImage.style.opacity = '0.5';
-      document.body.appendChild(dragImage);
-      e.dataTransfer.setDragImage(dragImage, 0, 0);
-      setTimeout(() => document.body.removeChild(dragImage), 0);
-    }
   };
 
   // 拖拽经过
@@ -187,7 +179,7 @@ export function BulletEditor({
               <button
                 key={slot.id}
                 onClick={() => handleSwitchSlot(index)}
-                className={`p-4 rounded-xl border-2 transition-all transform hover:scale-105 ${
+                className={`p-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
                   selectedSlot === index
                     ? 'border-yellow-400 bg-gradient-to-br from-yellow-900/40 to-orange-900/40 shadow-lg shadow-yellow-500/50'
                     : 'border-gray-600 bg-gray-800 hover:bg-gray-700 hover:border-gray-500'
@@ -208,7 +200,7 @@ export function BulletEditor({
                   </div>
                   <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300"
+                      className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500"
                       style={{ width: `${energyPercent}%` }}
                     ></div>
                   </div>
@@ -238,7 +230,7 @@ export function BulletEditor({
               size="sm"
               onClick={handleClearSlot}
               disabled={currentSlot.program.modules.length === 0}
-              className="border-red-500 text-red-400 hover:bg-red-500/20"
+              className="border-red-500 text-red-400 hover:bg-red-500/20 transition-all duration-200"
             >
               <X className="w-4 h-4 mr-1" />
               清空
@@ -272,14 +264,18 @@ export function BulletEditor({
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, index)}
                       onDragEnd={handleDragEnd}
-                      className={`${getModuleColor(module.type)} border-2 px-4 py-3 rounded-lg text-white font-semibold cursor-move transition-all transform relative group ${
-                        isBeingDragged ? 'opacity-30 scale-95' : isDragPreview ? 'opacity-60' : 'hover:opacity-80 hover:scale-105'
-                      }`}
+                      className={`${getModuleColor(module.type)} border-2 px-4 py-3 rounded-lg text-white font-semibold cursor-move relative group
+                        transition-all duration-200 ease-out
+                        ${isBeingDragged ? 'opacity-30 scale-95' : isDragPreview ? 'opacity-60 scale-95' : 'hover:opacity-90 hover:scale-105'}
+                      `}
+                      style={{
+                        transform: isBeingDragged ? 'rotate(-2deg)' : isDragPreview ? 'rotate(1deg)' : 'rotate(0deg)',
+                      }}
                       onMouseEnter={() => setHoveredModule(module)}
                       onMouseLeave={() => setHoveredModule(null)}
                     >
                       {/* 拖拽手柄 */}
-                      <div className="absolute -left-1 top-1/2 -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute -left-1 top-1/2 -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity duration-200">
                         <GripVertical className="w-4 h-4" />
                       </div>
                       
@@ -294,7 +290,7 @@ export function BulletEditor({
                             const originalIndex = currentSlot.program.modules.findIndex(m => m.id === module.id);
                             handleRemoveModule(originalIndex);
                           }}
-                          className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                          className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-red-600 hover:scale-110"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -308,13 +304,13 @@ export function BulletEditor({
 
           {/* 配置信息 */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-900 rounded-lg p-3">
+            <div className="bg-gray-900 rounded-lg p-3 transition-all duration-300 hover:bg-gray-800">
               <div className="text-sm text-gray-400 mb-1">能量消耗</div>
-              <div className="text-2xl font-bold text-yellow-400">{energyCost}</div>
+              <div className="text-2xl font-bold text-yellow-400 transition-all duration-300">{energyCost}</div>
             </div>
-            <div className="bg-gray-900 rounded-lg p-3">
+            <div className="bg-gray-900 rounded-lg p-3 transition-all duration-300 hover:bg-gray-800">
               <div className="text-sm text-gray-400 mb-1">可发射次数</div>
-              <div className={`text-2xl font-bold ${canFire ? 'text-green-400' : 'text-red-400'}`}>
+              <div className={`text-2xl font-bold transition-all duration-300 ${canFire ? 'text-green-400' : 'text-red-400'}`}>
                 {fireCount}
               </div>
             </div>
@@ -322,7 +318,7 @@ export function BulletEditor({
 
           {/* 验证状态 */}
           {!validation.valid && (
-            <div className="mt-3 bg-red-900/30 border border-red-500 rounded-lg p-3 text-sm text-red-300">
+            <div className="mt-3 bg-red-900/30 border border-red-500 rounded-lg p-3 text-sm text-red-300 animate-pulse">
               ⚠️ {validation.error}
             </div>
           )}
@@ -350,15 +346,16 @@ export function BulletEditor({
                     onMouseEnter={() => setHoveredModule(module)}
                     onMouseLeave={() => setHoveredModule(null)}
                     disabled={count <= 0}
-                    className={`${getModuleColor(module.type)} border-2 p-4 rounded-xl font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-90 transition-all transform hover:scale-105 relative ${
-                      isHovered ? 'ring-2 ring-white' : ''
-                    }`}
+                    className={`${getModuleColor(module.type)} border-2 p-4 rounded-xl font-semibold disabled:opacity-30 disabled:cursor-not-allowed 
+                      transition-all duration-200 transform hover:scale-105 hover:opacity-90 active:scale-95
+                      relative ${isHovered ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-900' : ''}
+                    `}
                   >
                     <div className="text-sm mb-1">{module.name}</div>
                     <div className="text-xs opacity-75">{getRarityBadge(module.rarity)}</div>
                     
                     {/* 库存数量 */}
-                    <div className="absolute -top-2 -right-2 bg-black text-white text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center border-2 border-current">
+                    <div className="absolute -top-2 -right-2 bg-black text-white text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center border-2 border-current transition-transform duration-200 group-hover:scale-110">
                       {count}
                     </div>
                   </button>
@@ -382,15 +379,16 @@ export function BulletEditor({
                     onMouseEnter={() => setHoveredModule(module)}
                     onMouseLeave={() => setHoveredModule(null)}
                     disabled={count <= 0}
-                    className={`${getModuleColor(module.type)} border-2 p-4 rounded-xl font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-90 transition-all transform hover:scale-105 relative ${
-                      isHovered ? 'ring-2 ring-white' : ''
-                    }`}
+                    className={`${getModuleColor(module.type)} border-2 p-4 rounded-xl font-semibold disabled:opacity-30 disabled:cursor-not-allowed 
+                      transition-all duration-200 transform hover:scale-105 hover:opacity-90 active:scale-95
+                      relative ${isHovered ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-900' : ''}
+                    `}
                   >
                     <div className="text-sm mb-1">{module.name}</div>
                     <div className="text-xs opacity-75">{getRarityBadge(module.rarity)}</div>
                     
                     {/* 库存数量 */}
-                    <div className="absolute -top-2 -right-2 bg-black text-white text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center border-2 border-current">
+                    <div className="absolute -top-2 -right-2 bg-black text-white text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center border-2 border-current transition-transform duration-200 group-hover:scale-110">
                       {count}
                     </div>
                   </button>
@@ -402,7 +400,7 @@ export function BulletEditor({
 
         {/* 模块详情悬浮提示 */}
         {hoveredModule && (
-          <div className="mt-4 bg-gradient-to-br from-blue-900/50 to-purple-900/50 border-2 border-blue-400 rounded-xl p-4">
+          <div className="mt-4 bg-gradient-to-br from-blue-900/50 to-purple-900/50 border-2 border-blue-400 rounded-xl p-4 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2">
             <div className="flex items-start justify-between mb-2">
               <div>
                 <h4 className="font-bold text-lg text-blue-300">{hoveredModule.name}</h4>
@@ -432,13 +430,13 @@ export function BulletEditor({
           <Button 
             variant="outline" 
             onClick={onClose}
-            className="border-gray-500 hover:bg-gray-700"
+            className="border-gray-500 hover:bg-gray-700 transition-all duration-200"
           >
             关闭
           </Button>
           <Button 
             onClick={onClose}
-            className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+            className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 transition-all duration-200 transform hover:scale-105 active:scale-95"
             disabled={!validation.valid}
           >
             应用配置

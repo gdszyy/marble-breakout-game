@@ -393,6 +393,9 @@ export default function Game() {
         
         slot.program.modules = modules;
         const energyCost = modules.length * 10;
+        
+        // 强制触发React重新渲染
+        setGameState({...state})
         slot.energyCost = energyCost;
       }
     }
