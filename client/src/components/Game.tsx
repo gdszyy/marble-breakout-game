@@ -372,6 +372,27 @@ export default function Game() {
       }
     }
 
+    // 渲染子弹槽（与战斗场景保持一致）
+    for (let i = 0; i < state.bulletSlots.length; i++) {
+      const slot = state.bulletSlots[i];
+      const graphics = new PIXI.Graphics();
+      graphics.rect(slot.position.x, slot.position.y, slot.width, GAME_CONFIG.SLOT_HEIGHT);
+      graphics.stroke({ width: 2, color: i === state.player.currentBulletSlot ? 0xffff00 : 0x666666 });
+      container.addChild(graphics);
+
+      const text = new PIXI.Text({
+        text: `${slot.name}\n能量: ${Math.floor(slot.energy)}/${slot.energyCost}`,
+        style: {
+          fontSize: 10,
+          fill: 0xffffff,
+          align: 'center',
+        },
+      });
+      text.x = slot.position.x + 5;
+      text.y = slot.position.y + 5;
+      container.addChild(text);
+    }
+
     // 显示待发射弹珠数量
     const marbleCountText = new PIXI.Text({
       text: `待发射弹珠: ${state.marbles.length}`,
