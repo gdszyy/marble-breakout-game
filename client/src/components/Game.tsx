@@ -466,44 +466,7 @@ export default function Game() {
     }
   };
 
-  // 计算石板抽屉动画的位置
-  const getDrawerTransform = (): number => {
-    if (!engineRef.current) return 100;
-    
-    const sceneManager = engineRef.current.getSceneManager();
-    const currentScene = sceneManager.getCurrentScene();
-    const transition = sceneManager.getTransition();
-    
-    // 如果正在切换
-    if (transition) {
-      if (transition.to === Scene.LOADING) {
-        // 切换到装填场景：从下往上滑动 (100% -> 0%)
-        return 100 - (transition.progress * 100);
-      } else {
-        // 切换回战斗场景：从上往下滑动 (0% -> 100%)
-        return transition.progress * 100;
-      }
-    }
-    
-    // 如果当前在装填场景，石板完全显示 (0%)
-    if (currentScene === Scene.LOADING) {
-      return 0;
-    }
-    
-    // 否则石板完全隐藏 (100%)
-    return 100;
-  };
-  
-  // 判断是否显示石板抽屉
-  const shouldShowDrawer = (): boolean => {
-    if (!engineRef.current) return false;
-    const sceneManager = engineRef.current.getSceneManager();
-    const currentScene = sceneManager.getCurrentScene();
-    const isTransitioning = sceneManager.isTransitioning();
-    
-    // 当前在装填场景或正在切换时显示
-    return currentScene === Scene.LOADING || isTransitioning;
-  };
+
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
@@ -521,17 +484,7 @@ export default function Game() {
             </div>
           </div>
         )}
-        
-        {/* 石板抽屉动画（装填场景） */}
-        {shouldShowDrawer() && (
-          <div 
-            className="absolute inset-0 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 border-4 border-cyan-400 rounded-lg shadow-2xl transition-transform duration-800 ease-in-out pointer-events-none"
-            style={{
-              transform: `translateY(${getDrawerTransform()}%)`,
-            }}
-          >
-          </div>
-        )}
+
       </div>
 
       <div className="flex flex-wrap gap-3 justify-center mt-6">
