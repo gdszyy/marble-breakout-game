@@ -137,14 +137,16 @@ export default function Game() {
           const direction = { x: dx / len, y: dy / len };
           const slot = state.bulletSlots[state.player.currentBulletSlot];
           // 计算反弹次数
-          const bounceCount = slot.program.modules.filter((m: any) => m.type === 'BOUNCE_PLUS').length;
-          const traj = TrajectoryPredictor.predict(
-            state.player.position,
-            direction,
-            bounceCount,
-            state.bricks
-          );
-          setTrajectory(traj);
+          if (slot && slot.program && slot.program.modules) {
+            const bounceCount = slot.program.modules.filter((m: any) => m.type === 'BOUNCE_PLUS').length;
+            const traj = TrajectoryPredictor.predict(
+              state.player.position,
+              direction,
+              bounceCount,
+              state.bricks
+            );
+            setTrajectory(traj);
+          }
         }
       });
 
@@ -233,7 +235,7 @@ export default function Game() {
 
     // 渲染子弹
     for (const bullet of state.bullets) {
-      const bulletType = bullet.program.modules.find((m: any) => !m.isModifier)?.type || 'NORMAL';
+      const bulletType = bullet.program?.modules?.find((m: any) => !m.isModifier)?.type || 'NORMAL';
       const bulletTexture = assets ? AssetLoader.getBulletTexture(bulletType) : null;
       
       if (bulletTexture) {
@@ -496,6 +498,12 @@ export default function Game() {
     if (engineRef.current) {
       const state = engineRef.current.getState();
       const slot = state.bulletSlots[slotIndex];
+      
+      // 检查slot是否存在
+      if (!slot || !slot.program || !slot.program.modules) {
+        console.error('Slot or program is undefined:', slotIndex);
+        return;
+      }
       
       // 计算模块差异，返还移除的模块到库存
       const oldModules = slot.program.modules.map((m: any) => m.type);
