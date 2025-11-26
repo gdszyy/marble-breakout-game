@@ -1,13 +1,13 @@
 // 子弹编辑器 - 让玩家组合模块编程子弹
 
-import { useState } from 'react';
+import { useState, DragEvent } from 'react';
 import { BulletModuleType } from '../types/game';
 import type { BulletSlot, BulletModule } from '../types/game';
 import { ModuleRegistry } from '../game/ModuleRegistry';
 import { BulletProgramProcessor } from '../game/BulletProgramProcessor';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import { X, Info, Zap, Target } from 'lucide-react';
+import { X, Info, Zap, Target, GripVertical } from 'lucide-react';
 
 interface BulletEditorProps {
   isOpen: boolean;
@@ -30,6 +30,7 @@ export function BulletEditor({
 }: BulletEditorProps) {
   const [selectedSlot, setSelectedSlot] = useState(currentSlotIndex);
   const [hoveredModule, setHoveredModule] = useState<BulletModule | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const currentSlot = bulletSlots[selectedSlot];
 
   const handleAddModule = (moduleType: BulletModuleType) => {
@@ -45,20 +46,49 @@ export function BulletEditor({
     onUpdateSlot(currentSlot.id, newModules);
   };
 
-  const handleMoveModule = (fromIndex: number, toIndex: number) => {
-    const newModules = [...currentSlot.program.modules];
-    const [movedModule] = newModules.splice(fromIndex, 1);
-    newModules.splice(toIndex, 0, movedModule);
-    onUpdateSlot(currentSlot.id, newModules);
-  };
-
   const handleClearSlot = () => {
+    // 清空槽位，handleUpdateSlot会自动返还模块到库存
     onUpdateSlot(currentSlot.id, []);
   };
 
   const handleSwitchSlot = (index: number) => {
     setSelectedSlot(index);
     onSwitchSlot(index);
+  };
+
+  // 拖拽开始
+  const handleDragStart = (e: DragEvent<HTMLDivElement>, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  // 拖拽经过
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  // 放置
+  const handleDrop = (e: DragEvent<HTMLDivElement>, dropIndex: number) => {
+    e.preventDefault();
+    
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      return;
+    }
+
+    // 重新排序模块
+    const newModules = [...currentSlot.program.modules];
+    const [movedModule] = newModules.splice(draggedIndex, 1);
+    newModules.splice(dropIndex, 0, movedModule);
+    
+    onUpdateSlot(currentSlot.id, newModules);
+    setDraggedIndex(null);
+  };
+
+  // 拖拽结束
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
   };
 
   const energyCost = BulletProgramProcessor.calculateEnergyCost(currentSlot.program);
@@ -189,6 +219,7 @@ export function BulletEditor({
                   <Info className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">点击下方模块添加到配置</p>
                   <p className="text-xs mt-1">修饰模块需在基础子弹左侧</p>
+                  <p className="text-xs mt-1">拖动模块可调整顺序</p>
                 </div>
               </div>
             ) : (
@@ -196,18 +227,35 @@ export function BulletEditor({
                 {currentSlot.program.modules.map((module, index) => (
                   <div
                     key={module.id}
-                    className={`${getModuleColor(module.type)} border-2 px-4 py-3 rounded-lg text-white font-semibold cursor-pointer hover:opacity-80 transition-all transform hover:scale-105 relative group`}
-                    onClick={() => handleRemoveModule(index)}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, index)}
+                    onDragEnd={handleDragEnd}
+                    className={`${getModuleColor(module.type)} border-2 px-4 py-3 rounded-lg text-white font-semibold cursor-move hover:opacity-80 transition-all transform hover:scale-105 relative group ${
+                      draggedIndex === index ? 'opacity-50 scale-95' : ''
+                    }`}
                     onMouseEnter={() => setHoveredModule(module)}
                     onMouseLeave={() => setHoveredModule(null)}
                   >
+                    {/* 拖拽手柄 */}
+                    <div className="absolute -left-1 top-1/2 -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity">
+                      <GripVertical className="w-4 h-4" />
+                    </div>
+                    
                     <div className="text-sm">{module.name}</div>
                     <div className="text-xs opacity-75">{module.isModifier ? '修饰' : '基础'}</div>
                     
-                    {/* 删除提示 */}
-                    <div className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* 删除按钮 */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveModule(index);
+                      }}
+                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                    >
                       <X className="w-3 h-3" />
-                    </div>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -331,7 +379,7 @@ export function BulletEditor({
             <li>• 至少需要一个基础子弹模块才能发射</li>
             <li>• 修饰模块必须在基础子弹<span className="text-yellow-400 font-bold">左侧</span>才生效</li>
             <li>• 多个修饰模块可叠加产生组合效果</li>
-            <li>• 点击已添加的模块可移除</li>
+            <li>• <span className="text-green-400 font-bold">拖动</span>模块可调整顺序，点击删除按钮移除</li>
             <li>• 每个模块消耗10点能量</li>
           </ul>
         </div>
