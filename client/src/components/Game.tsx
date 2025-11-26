@@ -111,13 +111,33 @@ export default function Game() {
         }
       });
 
-      // 点击事件 - 发射子弹
+      // 点击事件 - 切换子弹槽或发射子弹
       app.canvas.addEventListener('click', (e: MouseEvent) => {
         const rect = (app.canvas as HTMLCanvasElement).getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
         const state = engine.getState();
+        
+        // 检查是否点击了子弹槽区域
+        let clickedSlot = -1;
+        for (let i = 0; i < state.bulletSlots.length; i++) {
+          const slot = state.bulletSlots[i];
+          if (x >= slot.position.x && x <= slot.position.x + slot.width &&
+              y >= slot.position.y && y <= slot.position.y + GAME_CONFIG.SLOT_HEIGHT) {
+            clickedSlot = i;
+            break;
+          }
+        }
+        
+        // 如果点击了子弹槽，切换当前槽位
+        if (clickedSlot >= 0) {
+          state.player.currentBulletSlot = clickedSlot;
+          setGameState({...state});
+          return;
+        }
+        
+        // 否则发射子弹
         const dx = x - state.player.position.x;
         const dy = y - state.player.position.y;
         const len = Math.sqrt(dx * dx + dy * dy);
