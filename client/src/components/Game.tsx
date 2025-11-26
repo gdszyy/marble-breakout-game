@@ -528,8 +528,13 @@ export default function Game() {
       // 更新槽位
       slot.program.modules = modules;
       
-      // 强制React重新渲染
-      setGameState({...state});
+      // 重新计算能量消耗
+      slot.energyCost = modules.reduce((sum: number, module: any) => {
+        return sum + (module.energyCost || 0);
+      }, 0);
+      
+      // 使用深拷贝确保React检测到状态变化
+      setGameState(JSON.parse(JSON.stringify(state)));
     }
   };
 

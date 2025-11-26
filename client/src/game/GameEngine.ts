@@ -142,6 +142,14 @@ export class GameEngine {
     this.initializeBumpers();
     this.state.pendingMarbleCount = 3;
     
+    // 装填阶段开始时，为所有配置了编程的子弹槽充能
+    for (const slot of this.state.bulletSlots) {
+      if (slot.program && slot.program.modules.length > 0 && slot.energyCost > 0) {
+        // 充满能量
+        slot.energy = slot.energyCost;
+      }
+    }
+    
     if (this.state.marbleLaunchMode === 'auto') {
       for (let i = 0; i < 3; i++) {
         setTimeout(() => this.launchMarble(), i * 300);
